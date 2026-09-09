@@ -11,10 +11,13 @@ from src.dev_engine.dream_consolidation import DreamOrchestrator
 console = Console()
 
 
-def run_critique_cycle(db_path: str = "dev_memory.db"):
-    console.print(Panel.fit("[bold cyan]DataSec DB // Multi-Agent Development & Self-Critique Engine[/bold cyan]\n[dim]Architecture grounded in Dreaming Multi-Agent Memory System (README.md)[/dim]"))
+def run_critique_cycle(agents_dir: str = ".agents"):
+    console.print(Panel.fit(
+        "[bold cyan]DataSec DB // Multi-Agent Development & Self-Critique Engine[/bold cyan]\n"
+        f"[dim]Git-Native File-Based Memory System: `{agents_dir}/` (README.md)[/dim]"
+    ))
 
-    memory_manager = MemoryManager(db_path=db_path)
+    memory_manager = MemoryManager(base_dir=agents_dir)
 
     # 1. WAKING MODE: Agents analyze and benchmark
     console.print("\n[bold yellow]═══ STEP 1: WAKING MODE (Agents Generate Experience) ═══[/bold yellow]")
@@ -73,6 +76,9 @@ def run_critique_cycle(db_path: str = "dev_memory.db"):
     for sm in semantic_memories:
         sem_table.add_row(sm.id, sm.type.value, sm.content, sm.source)
     console.print(sem_table)
+
+    sem_files = list(memory_manager.semantic_dir.glob("*.md"))
+    console.print(f"\n [bold green]✔[/bold green] [bold]Git-Native Storage Synchronized:[/bold] {len(sem_files)} Markdown files in `{memory_manager.semantic_dir}/`, audit versions in `{memory_manager.versions_file}`.")
 
     console.print(Panel("[bold green]Success:[/bold green] The multi-agent development engine successfully self-criticized, evaluated the security tool, and consolidated findings into actionable durable knowledge."))
     return dream_out

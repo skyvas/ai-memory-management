@@ -19,6 +19,11 @@ dev_memory.db
 test_memory.db
 uploads/
 
+# Agent memory ephemeral directories
+.agents/working/
+.agents/cache/
+*.tmp
+
 # OS artifacts
 .DS_Store
 Thumbs.db
