@@ -11,18 +11,16 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.coverage
+htmlcov/
 
-# Local databases & uploads
-*.db
-*.sqlite3
-dev_memory.db
-test_memory.db
-uploads/
-
-# Agent memory ephemeral directories
-.agents/working/
-.agents/cache/
+# Worktrees & Ephemeral logs
+.worktrees/
+.logs/
 *.tmp
+
+# Environment variables
+.env
 
 # OS artifacts
 .DS_Store

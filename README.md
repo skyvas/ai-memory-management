@@ -1,479 +1,683 @@
-# Dreaming Multi-Agent Memory System
+# AgentGraph: Autonomous Loop, Graph & Memory Engineering Harness
 
-An architectural framework for cognitive, memory-efficient multi-agent AI systems. The architecture separates active execution from offline knowledge consolidation, enabling autonomous agents to accumulate experience, synthesize durable knowledge, and collaborate over long horizons without context window degradation.
+AgentGraph is a comprehensive multi-agent orchestration harness designed to transition software engineering from fragile, interactive chat prompts into deterministic, self-healing autonomous loops, directed acyclic dependency graphs (DAGs), and offline memory consolidation ("dreaming"). It pairs dynamic filesystem isolation via native Git Worktrees with binary compiler verification gates, clean-context reviewer agents, and biologically inspired semantic distillation.
 
----
-
-## 1. Executive Summary & Core Philosophy
-
-State-of-the-art Large Language Model (LLM) agent architectures face critical memory challenges:
-- **Context Bloat:** Stuffing complete conversation histories into prompts causes token exhaustion, high inference costs, and attention degradation ("lost in the middle").
-- **Transient Experience:** Agents forget insights, discoveries, and decisions once a session concludes.
-- **Fragmented Multi-Agent State:** Multiple agents working on shared goals either duplicate knowledge or operate with conflicting assumptions.
-- **Naive Vector Search Limitations:** Vector databases identify surface textual similarity, but cannot resolve contradictions, track changing facts over time, synthesize higher-level patterns, or prune obsolete beliefs.
-
-The **Dreaming Multi-Agent Memory System** resolves these challenges by introducing a biologically inspired cognitive architecture grounded in a single central philosophy:
-
-> **Waking agents generate experience. Memory stores experience. Dreaming turns experience into durable knowledge. Retrieval gives each agent only the precise knowledge it needs.**
+All persistent agent memories, failure patterns, and architectural invariants are stored exclusively in human-readable, version-controlled Markdown (`.md`) files, allowing engineers to inspect, edit, and audit agent learnings directly in Git.
 
 ---
 
-## 2. System Modes
+## 📑 Table of Contents
 
-The system operates across two distinct, complementary modes:
-
-```
-+-----------------------------------------------------------------------+
-|                             SYSTEM MODES                              |
-+------------------------------------+----------------------------------+
-|            WAKING MODE             |          DREAMING MODE           |
-|        (Active Execution)          |      (Offline Consolidation)     |
-+------------------------------------+----------------------------------+
-| - Orchestrator delegates tasks     | - Runs asynchronously in bg      |
-| - Specialized agents execute work  | - Operates on memory snapshot    |
-| - Selective, compact retrieval     | - Merges duplicate memories      |
-| - New experiences recorded to log  | - Resolves contradictions        |
-| - Fast, latency-critical           | - Synthesizes knowledge graph    |
-+------------------------------------+----------------------------------+
-```
-
-### Waking Mode (Operational State)
-During waking mode, the system serves users and responds to live events:
-- An **Agent Orchestrator** receives incoming tasks and delegates them to specialized agents (e.g., Research, Coding, Planning).
-- Each agent receives only its immediate task instructions and a compact, highly relevant subset of memory (typically 5–20 focused records), rather than full conversational histories.
-- Agents perform work and emit observations, decisions, and artifacts back to the memory manager as newly formed experience records.
-
-### Dreaming Mode (Consolidation State)
-Dreaming is an engineering metaphor for asynchronous, offline memory consolidation rather than a claim about machine consciousness:
-- The system periodically captures an isolated snapshot of long-term memory.
-- While waking agents continue operating uninterrupted, specialized **Dream Agents** analyze this snapshot in the background.
-- Dreaming processes identify redundancies, reconcile conflicting statements, abstract recurring behaviors into generalized knowledge, construct relationship graphs, and prune stale information.
-- The resulting memory improvements are vetted by an evaluator and promoted as the new canonical memory model.
-
----
-
-## 3. High-Level Architecture
-
-The end-to-end lifecycle forms a dual-phase feedback loop connecting waking execution with offline dreaming:
-
-```mermaid
-flowchart TD
-    subgraph WAKING_MODE ["Waking Mode (Active Task Execution)"]
-        UserEvents["User / External Events"] --> AgentOrchestrator["Agent Orchestrator"]
-        AgentOrchestrator --> AgentA["Research Agent"]
-        AgentOrchestrator --> AgentB["Coding Agent"]
-        AgentOrchestrator --> AgentC["Planning Agent"]
-        
-        AgentA & AgentB & AgentC <-->|Selective Retrieval & Experience Logging| MemoryManager["Memory Manager"]
-        MemoryManager <--> WorkingMem[".agents/working/ (Ephemeral)"]
-        MemoryManager <--> LongTermMem[".agents/ (Git-Native Storage)"]
-    end
-
-    LongTermMem -.->|Point-in-Time Snapshot| DreamSnapshot[("Isolated Memory Snapshot")]
-
-    subgraph DREAMING_MODE ["Dreaming Mode (Offline Consolidation)"]
-        DreamSnapshot --> DreamOrchestrator["Dream Orchestrator"]
-        
-        DreamOrchestrator --> Consolidator["Consolidator Agent"]
-        DreamOrchestrator --> PatternFinder["Pattern Finder Agent"]
-        DreamOrchestrator --> ContradictionResolver["Contradiction Resolver Agent"]
-        DreamOrchestrator --> Compressor["Memory Compressor Agent"]
-        DreamOrchestrator --> RelationshipBuilder["Relationship Builder Agent"]
-        
-        Consolidator & PatternFinder & ContradictionResolver & Compressor & RelationshipBuilder --> Proposals["Dream Proposals Pool"]
-        
-        Proposals --> DreamEvaluator{"Dream Evaluator"}
-        DreamEvaluator -->|Reject Unsafe / Low-Value| Discarded["Discarded Proposals"]
-        DreamEvaluator -->|Approve & Verify| NewVersion[("Promoted Memory Model (vN+1)")]
-    end
-
-    NewVersion ==>|Promoted Knowledge Updates| LongTermMem
-```
+- [Architectural Paradigm Shift](#-architectural-paradigm-shift)
+- [Core Architectural Pillars](#️-core-architectural-pillars)
+  - [1. Autonomous Execution Loops (The Heartbeat)](#1-autonomous-execution-loops-the-heartbeat)
+  - [2. Deterministic Verification Gates (Binary Truth)](#2-deterministic-verification-gates-binary-truth)
+  - [3. Graph Engineering & False-Edge Pruning](#3-graph-engineering--false-edge-pruning)
+  - [4. Pristine-Context Verifiers (Anti-Confirmation Bias)](#4-pristine-context-verifiers-anti-confirmation-bias)
+  - [5. Native Git Worktree Isolation](#5-native-git-worktree-isolation)
+  - [6. Memory Tiers & "Dreaming" (Offline Consolidation)](#6-memory-tiers--dreaming-offline-consolidation)
+- [Markdown Memory Specification (.memory/*.md)](#-markdown-memory-specification-memorymd)
+  - [Memory Directory Structure](#memory-directory-structure)
+  - [Schema: Architecture & Invariants (architecture.md)](#schema-architecture--invariants-architecturemd)
+  - [Schema: Failure Patterns & Anti-Patterns (failure-patterns.md)](#schema-failure-patterns--anti-patterns-failure-patternsmd)
+  - [Schema: Decision Records (decisions/ADR-*.md)](#schema-decision-records-decisionsadr-md)
+- [System Topology & Data Flow](#-system-topology--data-flow)
+- [Project Management & Operating Model](#-project-management--operating-model)
+  - [Role Boundaries: Autonomous Fleet vs. Human Supervisor](#role-boundaries-autonomous-fleet-vs-human-supervisor)
+  - [Branching, Promotion & Merge Lifecycle](#branching-promotion--merge-lifecycle)
+- [Tech Stack](#️-tech-stack)
+- [Repository Layout](#-repository-layout)
+- [Prerequisites & Environment Setup](#-prerequisites--environment-setup)
+- [Quickstart Guide](#-quickstart-guide)
+- [Configuration Contracts](#-configuration-contracts)
+  - [Agent Operational Contract: GEMINI.md](#agent-operational-contract-geminimd)
+  - [Tool Hooks: .gemini/settings.json](#tool-hooks-geminisettingsjson)
+  - [Environment Variables: .env](#environment-variables-env)
+- [Workflow Specification (DAG YAML Schema)](#-workflow-specification-dag-yaml-schema)
+- [CLI Reference & Operations](#-cli-reference--operations)
+  - [1. Running Multi-Agent Workflow Graphs](#1-running-multi-agent-workflow-graphs)
+  - [2. Running Targeted Autonomous Loops](#2-running-targeted-autonomous-loops)
+  - [3. Executing the Dreaming Memory Consolidation](#3-executing-the-dreaming-memory-consolidation)
+  - [4. Managing Isolated Git Worktrees](#4-managing-isolated-git-worktrees)
+- [Reliability, Quotas & Safety Controls](#-reliability-quotas--safety-controls)
+- [Contributing & Development](#-contributing--development)
+- [License](#-license)
 
 ---
 
-## 4. Fundamental Paradigm: Shared Memory vs. Shared Context
+## 💡 Architectural Paradigm Shift
 
-A guiding architectural tenet of this system is:
+Traditional AI coding workflows treat large language models as interactive conversational partners. While effective for simple snippets, this conversational model fails on complex software systems due to context sprawl, attention degradation, sycophantic validation, and subjective completion claims.
 
-> **Shared memory does not mean shared context.**
+AgentGraph replaces conversational prompt tuning with an autonomous operational harness:
 
-In traditional multi-agent systems, agents frequently exchange bloated context windows containing full transcripts of all prior discussions. This approach degrades model attention and rapidly hits token limits.
-
-In this architecture:
-- Multiple agents share access to a single, unified memory repository.
-- Each agent operates within a minimal, task-specific context window.
-- The retrieval engine isolates and supplies only the specific subset of facts, constraints, and historical decisions directly pertinent to the agent's current objective.
-
----
-
-## 5. Memory Taxonomy
-
-Memory is partitioned into four distinct functional tiers, each serving a specific temporal and operational purpose:
-
-```
-+--------------------------------------------------------------------------+
-|                            MEMORY TAXONOMY                               |
-+----------------------+--------------------+-------------+----------------+
-| Memory Type          | Content            | Lifespan    | Speed / Scope  |
-+----------------------+--------------------+-------------+----------------+
-| Working Memory       | Active dialog,     | Minutes to  | In-memory,     |
-|                      | tool outputs,      | hours       | single session |
-|                      | intermediate steps |             |                |
-+----------------------+--------------------+-------------+----------------+
-| Episodic Memory      | Specific events,   | Days to     | Append-only,   |
-|                      | what occurred,     | months      | chronological, |
-|                      | who acted, when    |             | full trace     |
-+----------------------+--------------------+-------------+----------------+
-| Semantic Memory      | Distilled facts,   | Permanent / | Structured,    |
-|                      | conventions, rules,| versioned   | high-value,    |
-|                      | verified decisions |             | cross-session  |
-+----------------------+--------------------+-------------+----------------+
-| Shared Project State | Project tech stack,| Dynamic     | Globally       |
-|                      | milestones, active | project     | visible to     |
-|                      | team constraints   | lifecycle   | all agents     |
-+----------------------+--------------------+-------------+----------------+
-```
-
-1. **Working Memory:** The scratchpad of the active agent. Holds current dialogue state, tool arguments, raw outputs, and temporary hypotheses. Cleared or flushed upon task completion.
-2. **Episodic Memory:** An observational log of interactions and outcomes. Retains temporal and contextual fidelity (e.g., *"Agent B encountered dependency error X when running build Y at timestamp T"*).
-3. **Semantic Memory:** Durable, generalized knowledge derived from experience. Independent of the exact circumstance in which it was learned (e.g., *"The project backend requires Python 3.13 and uses PostgreSQL as its primary database"*).
-4. **Shared Project State:** Centrally managed coordination data that aligns all collaborating agents on technology choices, active milestones, and global project constraints.
+| Dimension | Legacy AI Coding (Chat / Prompting) | AgentGraph (Loops, Graphs & Dreaming) |
+| :--- | :--- | :--- |
+| **Control Model** | Human manually steers every prompt turn | Autonomous loops running against strict terminal goals |
+| **Completion Criteria** | Subjective LLM assertion ("I fixed the code") | Deterministic exit code 0 from compilers and test runners |
+| **Task Concurrency** | Single-threaded, sequential user prompts | Multi-agent DAG with false edges pruned for parallel fan-out |
+| **Quality Review** | Agent critiques its own work in the same thread | Independent out-of-band verifier with zero prior context |
+| **Workspace Model** | Shared local directory (prone to race conditions) | Isolated native Git Worktrees per concurrent task |
+| **Memory Lifecycle** | Sliding-window context truncation (loses facts) | Multi-tier memory with offline Markdown consolidation |
+| **Memory Storage** | Ephemeral context or opaque vector blobs | Version-controlled, human-readable Markdown (`.memory/*.md`) |
 
 ---
 
-## 6. Memory Scoping & Access Hierarchy
+## 🏛️ Core Architectural Pillars
 
-To ensure information is not accidentally over-generalized, memories are assigned explicit structural scopes:
+### 1. Autonomous Execution Loops (The Heartbeat)
+
+Agents do not halt after a single file patch. They execute within an automated execution cycle:
+
+$$\text{Observe} \longrightarrow \text{Plan} \longrightarrow \text{Act} \longrightarrow \text{Hook (PostToolUse)} \longrightarrow \text{Verify}$$
+
+- **Observe**: Inspects current repository state, file contents, active diffs, and previous stderr output.
+- **Plan**: Determines minimal atomic file modifications or terminal commands required.
+- **Act**: Synthesizes patches natively or via Google Gemini models (`gemini-2.5-pro` / `gemini-2.5-flash`).
+- **Hook**: Deterministically triggers code formatters and linters immediately after file writes.
+- **Verify**: Runs compilation and unit test commands to check objective status. If checks fail, compiler diagnostics and stack traces feed directly into the next observation step for automated self-repair.
+
+### 2. Deterministic Verification Gates (Binary Truth)
+
+Subjective assertions (e.g., *"I have resolved the issue and verified the implementation"*) are treated as unverified claims. A node is considered complete **only** when external tooling returns process **exit code 0**.
+
+- **Compilers & Type Checkers**: `mypy`, `pyright`, `tsc --noEmit`, `cargo check`, `go build`.
+- **Test Suites**: `pytest`, `vitest`, `jest`, or Playwright end-to-end runners.
+- **Linters & Formatters**: `ruff`, `black`, `flake8`, `biome`.
+
+### 3. Graph Engineering & False-Edge Pruning
+
+Large development epics are modeled as Directed Acyclic Graphs (DAGs) with strictly defined input and output schemas:
+
+- **False-Edge Elimination**: Traditional engineering plans assume serial dependencies (e.g., waiting for backend services before scaffolding client hooks). If subtasks do not exchange data, these false sequential edges are pruned.
+- **Parallel Fan-Out**: Independent worker nodes execute simultaneously across distinct agent runtimes in isolated Git worktrees, reducing total delivery duration from the sum of all tasks to the single longest path.
+
+### 4. Pristine-Context Verifiers (Anti-Confirmation Bias)
+
+When an agent is tasked with reviewing code it just wrote inside the same prompt thread, it suffers from severe confirmation bias and cognitive load.
+
+- Passing worker outputs are routed to an independent **Verifier Node**.
+- The Verifier runs in a fresh, unpolluted context window containing strictly the requirement specification, the raw unified git diff, and access to test suites.
+- The Verifier inspects edge cases, regression risks, concurrency safety, and security vulnerabilities without rationalizing past mistakes.
+
+### 5. Native Git Worktree Isolation
+
+Running multiple autonomous agents concurrently within a single directory inevitably causes file collisions, git lock conflicts, and corrupted intermediate states.
+
+- The harness provisions lightweight native Git Worktrees (`.worktrees/task-<id>`) checked out to isolated feature branches (`agent/<task-id>`) for each active worker.
+- Agents operate on physical files on disk with zero container startup overhead while guaranteeing total branch and filesystem isolation.
+
+### 6. Memory Tiers & "Dreaming" (Offline Consolidation)
+
+Long-running agent workflows generate massive quantities of transient noise: verbose compiler errors, terminal outputs, and abandoned implementation attempts. Naive truncation causes amnesia, wiping away project conventions and architectural decisions.
+
+AgentGraph implements a 3-tier memory model inspired by human sleep cycles:
 
 ```
-Global Scope
-  └── User Scope
-       └── Project Scope
-            └── Task Scope
-                 └── Session Scope
-                      └── Agent Scope
+┌────────────────────────────────────────────────────────┐
+│               1. WORKING MEMORY (Context)              │
+│  - Active goal, current file diff, immediate test log  │
+│  - Scope: Current loop iteration (Minutes)             │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼ (Token threshold reached or task complete)
+┌────────────────────────────────────────────────────────┐
+│               2. EPISODIC MEMORY (Logs)                │
+│  - Raw bash histories, stack traces, patch iterations  │
+│  - Scope: Ephemeral storage during session (Hours)     │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼ (Trigger: Offline Dreaming Phase)
+┌────────────────────────────────────────────────────────┐
+│               3. THE DREAMING CYCLE                    │
+│  - Background subagent in pristine context             │
+│  - Replays episodic trace & strips transient noise     │
+│  - Distills lessons, codebase facts, & failure rules   │
+│  - Writes updates directly to .memory/*.md & GEMINI.md │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│         4. SEMANTIC MEMORY (Human-Readable .md)        │
+│  - Distilled repository architecture & rules in Git    │
+│  - Formats: .memory/architecture.md, failure-patterns.md│
+│  - Scope: Permanent cross-session storage              │
+└────────────────────────────────────────────────────────┘
 ```
 
-- **Scope Isolation:** Prevents ephemeral reasoning or task-specific quirks from polluting the global knowledge base.
-- **Access Control:** Waking agents retrieve information bounded by their operational scope (e.g., an agent executing Task 3 only receives memories from the relevant Project and Task scopes, excluding unrelated tasks).
-- **Promotion Across Scopes:** When a pattern appears repeatedly across individual task sessions, dreaming agents can propose elevating that knowledge from Task scope to Project or User scope.
+- **Episodic-to-Semantic Distillation**: A background engine re-evaluates the task log, extracting generalizable codebase knowledge into structured Markdown notes.
+- **Self-Updating Instruction Files**: Distilled rules and lessons are automatically committed back to `GEMINI.md` and modular `.memory/*.md` files, upgrading instructions for subsequent runs.
+- **Selective Forgetting**: Dead-end experiments and raw terminal logs are discarded from long-term memory, preventing token bloat.
 
 ---
 
-## 7. Memory Admission Pipeline
+## 📝 Markdown Memory Specification (`.memory/*.md`)
 
-Not every conversational turn or tool execution deserves permanent retention. Storing uncurated data degrades retrieval accuracy and wastes resources.
+All permanent memories are maintained as plain, human-readable Markdown files stored in version control (`.memory/`). This ensures full developer transparency: engineers can read, git diff, edit, or delete any memory without needing database inspectors or binary deserializers.
 
-The **Memory Admission Pipeline** filters and refines incoming observations before long-term persistence:
-
-```
-Raw Interaction / Tool Output
-              │
-              ▼
-   [ Candidate Extraction ]
-              │
-              ▼
-   [ Importance Filtering ]      ───> Below threshold? Discard
-              │
-              ▼
-    [ Deduplication Check ]      ───> Redundant? Increment evidence count
-              │
-              ▼
-  [ Summarization & Clean-up ]   ───> Strip noise, format concisely
-              │
-              ▼
-   [ Semantic Classification ]   ───> Assign type, scope, metadata
-              │
-              ▼
-  Durable Long-Term Storage
-```
-
-### Admission Criteria & Signals
-- **Durability:** Is this statement temporary chatter (e.g., *"Let's proceed"*) or lasting knowledge (e.g., *"API rate limit is 60 req/min"* )?
-- **Importance vs. Confidence:** Decoupled metrics ensuring that critical yet unverified assertions are treated differently from low-significance confirmed facts.
-- **Novelty & Recurrence:** Whether the information introduces new concepts or reinforces existing memories with fresh evidence.
-- **Source Reliability:** Weights evidence based on the trustworthiness of the reporting agent or data source.
-
----
-
-## 8. Hybrid Retrieval Engine
-
-Effective memory retrieval requires more than basic keyword matching or naive vector search. The system utilizes a multi-signal hybrid retrieval architecture:
-
-```
-                         User Query / Task Context
-                                     │
-                     ┌───────────────┴───────────────┐
-                     ▼                               ▼
-            Dense Semantic Search         Structured Metadata Search
-          (Embedding Similarity)        (Scope, Type, Project, Tags)
-                     │                               │
-                     └───────────────┬───────────────┘
-                                     ▼
-                        [ Multi-Signal Re-Ranker ]
-                                     │
-                                     ├── Semantic Vector Proximity
-                                     ├── Scope Hierarchy Alignment
-                                     ├── Temporal Recency & Decay
-                                     ├── Importance & Confidence Scores
-                                     └── Knowledge Graph Proximity
-                                     │
-                                     ▼
-                         Top N Relevant Memories
-                         (Injected into Agent Context)
-```
-
-By combining dense vector embeddings with exact metadata filters and graph relationship distances, agents receive precise, context-rich memories without hallucinations or irrelevant context stuffing.
-
----
-
-## 9. The Dreaming Engine: Offline Knowledge Consolidation
-
-Dreaming is the periodic, reflective phase of the memory system. While waking agents focus on immediate task completion, the dreaming engine steps back to ask:
-
-> *What should be retained, merged, compressed, connected, corrected, archived, or forgotten?*
-
-### Snapshot Isolation & Safety
-Dreaming never operates directly on live, mutable working memory. Instead:
-1. The system creates a point-in-time snapshot of long-term memory.
-2. Waking agents continue serving requests against the live database without latency or lock contention.
-3. Dream agents conduct experiments, syntheses, and restructuring exclusively within the isolated snapshot workspace.
-4. If an experimental consolidation introduces regressions or inconsistencies, the snapshot is discarded without endangering production state.
-
----
-
-## 10. Specialized Dream Agents
-
-Rather than relying on a single monolithic prompt to reorganize memory, the dreaming engine coordinates specialized dream agents, each focused on a distinct cognitive operation:
-
-```
-                            DREAM ORCHESTRATOR
-                                     │
-       ┌───────────────┬─────────────┼─────────────┬───────────────┐
-       ▼               ▼             ▼             ▼               ▼
- [Consolidator] [Pattern Finder] [Contradiction] [Compressor] [Relationship]
-                                  [ Resolver  ]                 [ Builder  ]
-```
-
-### 1. Consolidator
-Identifies redundant or overlapping memories generated across multiple sessions and unifies them into canonical records.
-- *Input:*
-  - *"We use PostgreSQL."*
-  - *"Backend database is Postgres."*
-  - *"Our primary relational DB is PostgreSQL 16."*
-- *Output:*
-  - *"The project uses PostgreSQL 16 as its primary relational database."*
-
-### 2. Pattern Finder
-Scans across disparate sessions, projects, and agents to discover recurring themes, successful heuristics, or systemic bottlenecks.
-- Elevates localized observations into overarching best practices or structural insights.
-
-### 3. Contradiction Resolver
-Identifies conflicting statements across memory records (e.g., *"System uses MySQL"* vs. *"System uses PostgreSQL"*).
-- Analyzes timestamps, evidence trails, source authority, and subsequent project decisions.
-- Deprecates obsolete claims while maintaining historical provenance rather than silently deleting past context.
-
-### 4. Memory Compressor
-Synthesizes sprawling episodic histories into dense, high-level summaries while preserving critical causal milestones and evidence citations.
-- Prevents database bloating over months of continuous operation.
-
-### 5. Relationship Builder
-Constructs explicit semantic edges between isolated memory items, transforming a flat memory store into a queryable **Knowledge Graph**.
-- Builds relationships such as: `uses`, `depends_on`, `replaces`, `contradicts`, `supports`, `derived_from`, `part_of`.
-
-### 6. Hypothesis Generator
-Notices preliminary trends or correlations that are not yet confirmed facts.
-- Formulates tentative hypotheses tagged with low confidence.
-- Flags them for verification in future waking sessions as additional evidence accumulates.
-
----
-
-## 11. Bounded Autonomy: Dream Proposals & The Evaluation Layer
-
-To guarantee system stability, dream agents do not possess direct write access to canonical memory. They operate under a strict governance model:
-
-> **Dream agents propose; the evaluation layer decides.**
-
-```
-+--------------------------------------------------------------------------+
-|                       DREAM PROPOSAL LIFECYCLE                           |
-+--------------------------------------------------------------------------+
-|  Dream Agents Generate Proposals:                                        |
-|  - CREATE: Introduce new synthesized knowledge or hypotheses             |
-|  - MERGE: Combine multiple redundant records into one                    |
-|  - UPDATE: Refine confidence, scope, or content                          |
-|  - LINK: Establish semantic relationships in the knowledge graph         |
-|  - ARCHIVE / DEPRECATE: Mark obsolete or superseded knowledge            |
-|                                                                          |
-|                                     │                                    |
-|                                     ▼                                    |
-|  Dream Evaluator Scores Proposals:                                       |
-|  - Evidence Quality: Is the proposal backed by verifiable citations?     |
-|  - Consistency: Does it resolve conflict without creating new anomalies? |
-|  - Information Density: Does it genuinely compress redundancy?           |
-|  - Safety & Alignment: Does it preserve critical project constraints?    |
-|                                                                          |
-|                                     │                                    |
-|                  ┌──────────────────┴──────────────────┐                 |
-|                  ▼                                     ▼                 |
-|         [ Rejected Proposals ]               [ Approved Proposals ]      |
-|           Logged for audit                     Promoted to Memory vN+1   |
-+--------------------------------------------------------------------------+
-```
-
-This separation of proposal generation from evaluation ensures that autonomous self-modification remains bounded, verifiable, and safe.
-
----
-
-## 12. Memory Governance, Versioning & Validation
-
-### Immutable Memory Versioning
-Memory is treated as a versioned artifact rather than an untraceable mutable store:
-$$\text{Memory } v_{1} \xrightarrow{\text{Dream Cycle}} \text{Memory } v_{2} \xrightarrow{\text{Dream Cycle}} \text{Memory } v_{3}$$
-- Every dream run produces a new version tag.
-- Complete rollback capability: If a promoted version degrades retrieval performance, the system can instantly revert to a prior known-good version.
-- Auditing: Every modification links back to the responsible dream agent, the proposal rationale, and the supporting evidence.
-
-### Pre-Promotion Validation Checklist
-Before any dream cycle is committed to production memory, it must satisfy strict automated validation gates:
-- **Integrity:** All relational links and foreign references remain valid.
-- **Consistency:** Contradictions are reduced, not introduced.
-- **Compression:** Net storage footprint of consolidated concepts decreases without information loss.
-- **Retrieval Quality:** High-importance baseline memories remain readily discoverable under benchmark queries.
-- **Provenance:** Every newly synthesized memory retains full traceability back to raw episodic events.
-
----
-
-## 13. Memory Decay, Archiving & Intelligent Forgetting
-
-Human cognition remains effective because the brain deliberately forgets unimportant details. A synthetic memory system that retains every character indefinitely will inevitably suffer from high latency, noise, and ballooning costs.
-
-The system implements a four-stage memory lifecycle:
-
-```
-[ Active ] ───(Access diminishes / Age increases)───> [ Stale ]
-                                                          │
-                                         (Dream cycle evaluation)
-                                                          │
-                                                          ▼
-[ Deleted / Purged ] <───(Retention limit)─── [ Archived ]
-```
-
-1. **Active:** High relevance, high confidence, frequently accessed. Fully available in primary hybrid retrieval.
-2. **Stale:** Infrequently accessed, aging, or low importance. Re-ranked lower during standard retrieval queries.
-3. **Archived:** Removed from daily operational retrieval to keep search fast and noise-free. Retained in cold storage for historical auditing and deep forensic review.
-4. **Deleted / Purged:** Permanently erased when explicitly instructed or upon reaching retention limits for temporary tasks.
-
----
-
-## 14. Cross-Agent Learning & Emergent Intelligence
-
-In complex environments, no single agent possesses the complete picture. The dreaming system serves as the collective synthesis engine for the entire agent collective:
-
-```
-   Research Agent                Coding Agent               Planning Agent
-(Finds tech constraint)      (Encounters build bug)       (Tracks milestone risk)
-          │                            │                             │
-          └────────────────────────────┼─────────────────────────────┘
-                                       ▼
-                           Raw Episodic Memories
-                                       │
-                                [ Dream Cycle ]
-                                       │
-                                       ▼
-                       Higher-Level Project Insight:
-  "The current build failure is caused by an upstream library incompatibility
-      identified during research, jeopardizing the Friday milestone."
-```
-
-By synthesizing cross-agent observations offline, the system achieves an emergent understanding that no individual agent explicitly discovered or formulated on its own.
-
----
-
-## 15. The Continuous Closed-Loop Feedback Cycle
-
-The mature system operates as a self-improving cognitive loop:
-
-```mermaid
-graph LR
-    A["1. Live Experience"] -->|Waking Execution| B["2. Episodic Storage"]
-    B -->|Snapshot Extraction| C["3. Dreaming Consolidation"]
-    C -->|Synthesize & Prune| D["4. High-Density Knowledge"]
-    D -->|Promote Version| E["5. Optimized Retrieval"]
-    E -->|Precise Context Injection| A
-```
-
-1. **Waking Agents** execute tasks and encounter novel real-world situations.
-2. **Experiences** are screened and stored in episodic memory.
-3. **Dreaming** periodically consolidates, reorganizes, and verifies accumulated experience.
-4. **Durable Knowledge** is formed and structured into the semantic memory model.
-5. **Enhanced Retrieval** injects higher-quality, lower-noise context into subsequent waking agent tasks, leading to better decision-making and continuous autonomous improvement.
-
----
-
-## 16. Paradigm Comparison: Vector Stores vs. Dreaming Memory
-
-```
-+------------------------------------+------------------------------------+
-|       STANDARD VECTOR STORE        |    DREAMING MULTI-AGENT MEMORY     |
-+------------------------------------+------------------------------------+
-| Answers:                           | Answers:                           |
-| "What stored text is semantically  | "What do we know, why do we know   |
-| similar to this query string?"     | it, is it still valid, what        |
-|                                    | contradicts it, and how important  |
-|                                    | is it?"                            |
-+------------------------------------+------------------------------------+
-| Static, append-only embeddings     | Dynamic, continuously consolidated |
-|                                    | knowledge representations          |
-+------------------------------------+------------------------------------+
-| Retains conflicting facts side-by- | Actively detects and resolves      |
-| side without resolution            | contradictions                     |
-+------------------------------------+------------------------------------+
-| Context grows linearly; no         | Synthesizes, compresses, and       |
-| proactive summarization            | archives repetitive experiences    |
-+------------------------------------+------------------------------------+
-| No concept of memory lifecycle,    | Built-in decay, forgetting,        |
-| decay, or intentional forgetting   | archiving, and versioning          |
-+------------------------------------+------------------------------------+
-| Unbounded context bloat over long  | Constant, predictable context size |
-| operating horizons                 | with high signal-to-noise ratio    |
-+------------------------------------+------------------------------------+
-```
-
----
-
-## 17. Git-Native `.agents/` Storage Architecture
-
-To eliminate opaque binary database merge conflicts and support seamless multi-developer team collaboration, the memory engine is implemented using a **Git-native file-and-directory structure** under `.agents/`:
+### Memory Directory Structure
 
 ```text
-.agents/
-├── project_state.json               # Shared Project State: Milestones, tech stack, constraints
-├── versions.json                    # Version registry & promotion audit log
-├── semantic/                        # Semantic Memory: Human-readable, Git-versioned Markdown files
-│   ├── mem_186cc0e2.md              # Consolidated Benchmark Baseline
-│   ├── mem_2f3e8543.md              # Architectural Insight: Dynamic Query Evaluation
-│   ├── mem_64ba7b30.md              # Systemic Vulnerability Pattern: Unencrypted PII
-│   └── archive/                     # Superseded or archived semantic records
-├── episodic/                        # Episodic Memory: Append-only observational interaction logs
-│   ├── episodic_log.jsonl           # Active episodic records (JSON Lines)
-│   └── archive/                     # Consolidated / archived historical traces
-└── working/                         # Working Memory: Ephemeral session scratchpads (.gitignored)
-    └── session_active.json
+.memory/
+├── README.md                  # Guidelines on memory categorization & distillation rules
+├── architecture.md            # System invariants, design patterns, cross-cutting rules
+├── failure-patterns.md        # Identified anti-patterns, edge cases, and known regressions
+├── conventions.md             # Code style conventions, naming rules, test fixtures
+└── decisions/                 # Lightweight Architecture Decision Records (ADRs)
+    ├── ADR-0001-example.md
+    └── ADR-0002-pristine-context-gates.md
 ```
 
-### Team Collaboration & Pull-Request Driven Knowledge
-- **Human-Readable & Editable:** Developers can open any `.agents/semantic/*.md` file directly in their editor to inspect, modify, or manually add rules for their agents.
-- **Git Diffs for AI Learning:** Every dream consolidation produces clean Markdown diffs that can be committed, reviewed in GitHub PRs, and shared instantly across the engineering team.
-- **Zero Infrastructure:** No hosted database servers or credentials required. Running `git clone` instantly provides the complete team memory baseline.
+### Schema: Architecture & Invariants (`architecture.md`)
+
+Maintains durable architectural facts discovered or verified during task runs:
+
+```markdown
+# Architecture Invariants & System Constants
+
+*Last Updated by Agent Dreaming Engine: 2026-09-08 (Task: task-auth-v2)*
+
+## Data Storage & Caching
+- **Session Store:** Session tokens must be persisted using atomic Redis transactions (`MULTI/EXEC`). In-memory mock stores fail under concurrent test workers.
+- **Transactions:** Wrap all balance adjustments in explicit transactions with `Serializable` isolation level.
+
+## Inter-Service Communication
+- **Internal APIs:** All internal service RPCs require an `x-correlation-id` header passed from the initial API Gateway request.
+```
+
+### Schema: Failure Patterns & Anti-Patterns (`failure-patterns.md`)
+
+Logs recurring failure modes and how agents must proactively avoid them:
+
+```markdown
+# Known Failure Patterns & Regressions
+
+This document is maintained by the Dreaming Engine to record resolved bugs and prevent regressions.
+
+## FP-014: Worker Deadlocks on Shared SQLite Mocks
+- **Date:** 2026-09-05
+- **Symptoms:** Test suite hangs indefinitely when running concurrent test workers.
+- **Root Cause:** In-memory SQLite (`:memory:`) cannot be safely accessed across concurrent worker processes without file backing.
+- **Rule:** Always use dynamic per-worker temporary database files (`.tmp/test-${workerId}.db`) and clean up in test teardowns.
+
+## FP-021: Missing Refresh Token Cookie Path Restriction
+- **Date:** 2026-09-07
+- **Symptoms:** Refresh tokens were transmitted to unrelated subpaths, failing security audit checks.
+- **Rule:** Refresh token cookies must explicitly specify `Path=/api/v1/auth/refresh`, `HttpOnly=true`, and `SameSite=Strict`.
+```
+
+### Schema: Decision Records (`decisions/ADR-*.md`)
+
+For major architectural choices made by Planner nodes, the system creates lightweight Markdown Architecture Decision Records:
+
+```markdown
+# ADR-0001: Atomic Redis Session Store Migration
+
+## Status
+Accepted
+
+## Context
+During high-concurrency worker execution, in-memory session synchronization produced transient race conditions in the Auth service.
+
+## Decision
+Migrate from local memory maps to Redis-backed distributed sessions using Redis pipeline transactions.
+
+## Consequences
+- Requires Redis instance availability during integration test runs.
+- Guarantees thread-safe token revocation across multiple worker worktrees.
+```
 
 ---
 
-## 18. Summary
+## 🌐 System Topology & Data Flow
 
-The **Dreaming Multi-Agent Memory System** provides the missing cognitive layer for long-running autonomous AI systems. By decoupling real-time task execution from offline memory consolidation, it delivers:
-- **Scalable multi-agent collaboration** without exponential context growth.
-- **Durable institutional knowledge** that compounds over time.
-- **Traceable, versioned, and verifiable** memory operations.
-- **Self-refining intelligence** that transforms raw experience into actionable wisdom.
+```text
+                                  [ User Request / Epic Goal ]
+                                               │
+                                               ▼
+                               ┌───────────────────────────────┐
+                               │    GRAPH ORCHESTRATOR (DAG)   │
+                               │  - Parse Specifications       │
+                               │  - Prune False Edges          │
+                               │  - Schedule Task Allocations  │
+                               └───────────────┬───────────────┘
+                                               │
+                       ┌───────────────────────┴───────────────────────┐
+                       ▼                                               ▼
+        ┌─────────────────────────────┐                 ┌─────────────────────────────┐
+        │   WORKER NODE A (Backend)   │                 │   WORKER NODE B (Client)    │
+        │   Worktree: .worktrees/wt-a │                 │   Worktree: .worktrees/wt-b │
+        │   Loop: Observe-Act-Verify  │                 │   Loop: Observe-Act-Verify  │
+        └──────────────┬──────────────┘                 └──────────────┬──────────────┘
+                       │                                               │
+                       └───────────────────────┬───────────────────────┘
+                                               │ (Both Local Gates Pass exit 0)
+                                               ▼
+                               ┌───────────────────────────────┐
+                               │  PRISTINE CONTEXT VERIFIER    │
+                               │  - Zero Chat Memory Leakage   │
+                               │  - Evaluates Raw Git Diff     │
+                               │  - Security & Edge Case Gate  │
+                               └───────────────┬───────────────┘
+                                               │ (Approved)
+                                               ▼
+                               ┌───────────────────────────────┐
+                               │       DREAMING ENGINE         │
+                               │  - Distills Episodic Traces   │
+                               │  - Synthesizes New Rules      │
+                               │  - Commits .memory/*.md       │
+                               │  - Syncs Operational GEMINI.md│
+                               └───────────────┬───────────────┘
+                                               │
+                                               ▼
+                               ┌───────────────────────────────┐
+                               │     SYNTHESIZER & MERGE       │
+                               │  - Rebase onto main           │
+                               │  - Integration Tests (E2E)    │
+                               │  - Cleanup Active Worktrees   │
+                               └───────────────────────────────┘
+```
+
+---
+
+## 👥 Project Management & Operating Model
+
+High-autonomy software development requires clear structural boundaries between human oversight and automated agent execution.
+
+### Role Boundaries: Autonomous Fleet vs. Human Supervisor
+
+**The Autonomous Fleet:**
+- Deconstructs feature goals into execution DAGs.
+- Implements features, writes tests, runs compilation checks, and fixes syntax errors.
+- Runs internal verification and cross-verifies patches in pristine reviewer contexts.
+- Consolidates episodic operational knowledge into readable Markdown memory files via background dreaming cycles.
+
+**The Human Supervisor:**
+- Defines top-level business outcomes and constraints.
+- Reviews and signs off on architectural RFCs generated by Planner nodes.
+- Holds sole approval authority over final pull requests and production merges.
+- Audits distilled Markdown learnings added to `.memory/*.md` and `GEMINI.md` to prevent policy drift.
+
+### Branching, Promotion & Merge Lifecycle
+
+```text
+[main] ─────────────────────────────────────────────────────────────► [Release]
+  │                                                               ▲
+  ├─► [feature-epic]                                              │ (Human Approval)
+  │     ├─► [agent/task-backend-wt1] ──┐                          │
+  │     │   (Worktree Isolated)         │ (Verifier Pass)         │
+  │     │                               ├─► [Synthesizer / E2E] ──┘
+  │     └─► [agent/task-frontend-wt2] ──┘
+  │         (Worktree Isolated)
+```
+
+1. **Epic Branch Creation**: A human or lead agent branches `feature/<epic-name>` from `main`.
+2. **Worktree Allocation**: The DAG scheduler spawns short-lived branches (`agent/<task-id>`) inside isolated worktree directories.
+3. **Loop Verification**: Workers iterate until static types and unit tests pass.
+4. **Out-of-Band Audit**: A verifier subagent validates the aggregated diff.
+5. **Dreaming & Consolidation**: Successful patterns and failure discoveries are distilled into `.memory/*.md` and synced into `GEMINI.md`.
+6. **Merge Synthesis**: The Synthesizer merges task branches into the epic branch and runs end-to-end integration tests.
+7. **Human Sign-Off**: The final pull request from the epic branch into `main` is presented to human maintainers.
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technologies | Purpose |
+| :--- | :--- | :--- |
+| **Language & Runtime** | Python 3.9+ (CPython / PyPy) | Core execution harness and orchestration engine |
+| **Agent Foundation** | Native Google Gemini (`gemini-2.5-pro`, `gemini-2.5-flash`) | Reasoning, planning, coding, and review models |
+| **CLI & Interface** | Click, Rich | Host environment interaction and terminal tables |
+| **Verification & Compilers** | Pytest, Mypy, Ruff / Black | Binary exit code verification gates and code formatting |
+| **Filesystem Isolation** | Native Git Worktrees (`git worktree add / remove / prune`) | High-speed, conflict-free parallel workspace isolation |
+| **Memory Engine** | Background distillation writing directly to Markdown (`.memory/*.md` & `GEMINI.md`) | Offline episodic-to-semantic consolidation ("dreaming") |
+| **Graph Processing** | Topological DAG engine with dynamic cycle detection | Workflow dependency scheduling and parallel fan-out |
+
+---
+
+## 📂 Repository Layout
+
+```text
+agent-graph-harness/
+├── .gemini/
+│   ├── settings.json              # Tool hooks (PostToolUse auto-formatters)
+│   └── commands/                  # Custom agent operational commands
+├── .memory/                       # Permanent human-readable semantic memory
+│   ├── README.md                  # Memory system documentation & indexing rules
+│   ├── architecture.md            # System invariants & architectural constants
+│   ├── failure-patterns.md        # Documented anti-patterns, bugs & edge cases
+│   ├── conventions.md             # Code style, test structures, naming rules
+│   └── decisions/                 # Markdown Architecture Decision Records (ADRs)
+│       └── ADR-0001-example.md
+├── workflows/
+│   ├── auth-service.yaml          # Sample workflow: Microservice auth overhaul
+│   └── payment-migration.yaml     # Sample workflow: Multi-table schema migration
+├── src/
+│   ├── __init__.py
+│   ├── cli.py                     # Main CLI entrypoint
+│   ├── graph/
+│   │   ├── __init__.py
+│   │   ├── dag_engine.py          # Topological sort & dependency execution
+│   │   ├── optimizer.py           # False-edge pruner for parallelization
+│   │   ├── parser.py              # YAML workflow validator
+│   │   └── types.py               # Graph schema definitions
+│   ├── harness/
+│   │   ├── __init__.py
+│   │   ├── git_worktree.py        # Native Git Worktree allocator & cleaner
+│   │   ├── hooks.py               # PostToolUse formatter triggers
+│   │   └── sandbox.py             # Path traversal and command safeguards
+│   ├── loop/
+│   │   ├── __init__.py
+│   │   ├── agent_loop.py          # Observe-Plan-Act-Verify heartbeat
+│   │   ├── verifier_gate.py       # Compilers, linters & test execution
+│   │   └── token_budget.py        # Token consumption monitor
+│   ├── memory/
+│   │   ├── __init__.py
+│   │   ├── dreaming_engine.py     # Offline episodic-to-semantic compressor
+│   │   ├── markdown_memory.py     # Parser, updater, and validator for .memory/*.md
+│   │   ├── gemini_updater.py      # Automated GEMINI.md synchronization
+│   │   └── context_pruner.py      # Active scratchpad garbage collector
+│   └── verifier/
+│       ├── __init__.py
+│       └── clean_verifier.py      # Out-of-band fresh-context inspector
+├── tests/
+│   ├── __init__.py
+│   ├── test_dag_engine.py
+│   ├── test_git_worktree.py
+│   ├── test_agent_loop.py
+│   ├── test_markdown_memory.py
+│   └── test_dreaming_engine.py
+├── GEMINI.md                      # Primary agent system prompt & active rules
+├── pyproject.toml
+├── requirements.txt
+└── .env.example
+```
+
+---
+
+## 📋 Prerequisites & Environment Setup
+
+Ensure the host system meets these operational requirements:
+
+- **Python**: v3.9 or higher
+- **Git**: v2.30.0 or higher (with native `git worktree` support)
+- **Google Gemini API Key** *(Optional)*: Set `GEMINI_API_KEY` for live model inference (offline/deterministic mode runs out of the box without any key).
+
+---
+
+## 🚀 Quickstart Guide
+
+### 1. Clone & Set Up Virtual Environment
+
+```bash
+git clone https://github.com/your-org/agent-graph-harness.git
+cd agent-graph-harness
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to supply optional credentials and operational limits:
+
+```ini
+GEMINI_API_KEY=AIzaSy...
+DEFAULT_MODEL=gemini-2.5-pro
+FAST_MODEL=gemini-2.5-flash
+
+# Loop & Operational Thresholds
+MAX_LOOP_ITERATIONS=15
+TOKEN_ALERT_THRESHOLD=80000
+CONCURRENCY_LIMIT=4
+WORKTREE_BASE_DIR=.worktrees
+MEMORY_DIR=.memory
+```
+
+### 3. Verify Local Tooling & Run Tests
+
+```bash
+pytest tests/ -v
+```
+
+---
+
+## ⚙️ Configuration Contracts
+
+### Agent Operational Contract: `GEMINI.md`
+
+The `GEMINI.md` file at the root of the repository serves as the strict deterministic contract governing all running agents:
+
+```markdown
+# Repository Directives for Autonomous Agents (Gemini)
+
+## 1. Operating Axioms
+- NEVER announce completion without a verified exit code 0 from testing tools.
+- Never write code directly on protected branches (`main`, `staging`). Work strictly inside assigned Git Worktrees.
+- Run tests after every substantive file change.
+
+## 2. Deterministic Verification Gates
+- Unit & Integration Testing: `pytest <target-path> -v`
+- Process Exit Code: Process exit code must be strictly `0`.
+
+## 3. Memory & Consolidation Directives
+- Read architectural constants from `.memory/architecture.md` prior to planning.
+- Document any verified edge-case fixes or failure patterns into `.memory/failure-patterns.md`.
+- Keep intermediate edits clean; rely on PostToolUse formatters rather than fixing whitespace manually.
+```
+
+### Tool Hooks: `.gemini/settings.json`
+
+Configure `.gemini/settings.json` so every code modification automatically triggers formatting before verification runs:
+
+```json
+{
+  "hooks": {
+    "postToolUse": {
+      "edit": "python -m black --quiet {filepath} 2>/dev/null || true",
+      "write": "python -m black --quiet {filepath} 2>/dev/null || true"
+    }
+  }
+}
+```
+
+### Environment Variables: `.env`
+
+Key operational parameters for tuning agent concurrency, context limits, and memory storage:
+
+```ini
+# Primary Model Routing (Google Gemini)
+GEMINI_API_KEY=AIzaSy...
+DEFAULT_MODEL=gemini-2.5-pro
+FAST_MODEL=gemini-2.5-flash
+
+# Concurrency & Worktree Controls
+CONCURRENCY_LIMIT=4
+WORKTREE_BASE_DIR=.worktrees
+CLEANUP_ON_EXIT=true
+
+# Loop Limits & Memory Controls
+MAX_LOOP_ITERATIONS=15
+TOKEN_ALERT_THRESHOLD=80000
+DREAMING_TRIGGER_INTERVAL=5
+MEMORY_DIR=.memory
+```
+
+---
+
+## 📐 Workflow Specification (DAG YAML Schema)
+
+Workflows coordinate complex multi-agent objectives via structured YAML. The parser prunes false edges, groups independent nodes for parallel execution, routes passing work to the verifier, and triggers dreaming cycles:
+
+```yaml
+version: "1.0"
+name: "Production Auth & Session Overhaul"
+
+nodes:
+  # ----------------------------------------------------------------
+  # 1. SPECIFICATION & CONTRACT DESIGN
+  # ----------------------------------------------------------------
+  - id: spec-planner
+    type: planner
+    prompt: |
+      Design an RFC and interface definitions for JWT access and
+      refresh token authentication. Define database schema contracts.
+    outputs:
+      - "specs/auth-rfc.md"
+      - "schema/auth.json"
+    verification:
+      command: "python -c 'print(\"Spec contract validated\")'"
+
+  # ----------------------------------------------------------------
+  # 2. PARALLEL WORKERS (False edges pruned, fanned out concurrently)
+  # ----------------------------------------------------------------
+  - id: backend-worker
+    type: worker
+    inputs: ["specs/auth-rfc.md", "schema/auth.json"]
+    worktree: true
+    prompt: |
+      Implement AuthController, SessionService, and token rotation routines.
+      Ensure full test coverage.
+    verification:
+      command: "pytest tests/ -v"
+
+  - id: frontend-worker
+    type: worker
+    inputs: ["specs/auth-rfc.md"]
+    worktree: true
+    prompt: |
+      Implement session renewal hooks and client interceptors
+      for 401 re-authentication.
+    verification:
+      command: "pytest tests/ -v"
+
+  # ----------------------------------------------------------------
+  # 3. PRISTINE CONTEXT VERIFICATION GATE
+  # ----------------------------------------------------------------
+  - id: security-verifier
+    type: verifier
+    freshContext: true
+    inputs: ["backend-worker", "frontend-worker"]
+    prompt: |
+      Audit combined worktree diffs for security weaknesses:
+      - Constant-time verification on token signatures
+      - Secure, HttpOnly cookie flags on refresh tokens
+      - Replay attacks and concurrency race conditions
+    gate: "blocking"
+
+  # ----------------------------------------------------------------
+  # 4. MEMORY CONSOLIDATION ("DREAMING")
+  # ----------------------------------------------------------------
+  - id: consolidation-phase
+    type: dream
+    inputs: ["security-verifier"]
+    target: ".memory/architecture.md"
+    prompt: |
+      Extract architectural patterns and test setup nuances discovered during
+      backend and client implementation. Append verified rules to .memory/architecture.md
+      and synchronize operational rules with GEMINI.md.
+
+  # ----------------------------------------------------------------
+  # 5. INTEGRATION & SYNTHESIS
+  # ----------------------------------------------------------------
+  - id: merge-synthesizer
+    type: synthesizer
+    inputs: ["consolidation-phase"]
+    prompt: |
+      Merge worktree branches into the staging epic branch and execute
+      full system smoke and integration suites.
+    verification:
+      command: "pytest tests/ -v"
+```
+
+---
+
+## 💻 CLI Reference & Operations
+
+### 1. Running Multi-Agent Workflow Graphs
+
+Execute a multi-stage DAG with dynamic fan-out and false-edge elimination:
+
+```bash
+# Execute standard workflow
+python -m src.cli run-graph workflows/auth-service.yaml
+
+# Execute with debug trace and custom concurrency
+python -m src.cli run-graph workflows/auth-service.yaml --concurrency=6 --verbose
+
+# Run simulation dry-run without modifying filesystem
+python -m src.cli run-graph workflows/auth-service.yaml --dry-run
+```
+
+### 2. Running Targeted Autonomous Loops
+
+Launch a standalone self-healing loop against an isolated objective:
+
+```bash
+python -m src.cli run-loop \
+  --goal "Fix race condition in SessionStore token revocation" \
+  --verify-cmd "pytest tests/test_agent_loop.py" \
+  --max-retries 10 \
+  --isolated-worktree
+```
+
+### 3. Executing the Dreaming Memory Consolidation
+
+Manually trigger an episodic trace distillation pass across recent session logs to update Markdown memory:
+
+```bash
+python -m src.cli dream \
+  --trace-dir .logs/sessions/ \
+  --memory-dir .memory \
+  --sync-gemini \
+  --prune-transient
+```
+
+### 4. Managing Isolated Git Worktrees
+
+Inspect, audit, or clean active agent worktrees:
+
+```bash
+# List all active agent workspaces
+python -m src.cli worktrees:list
+
+# Prune inactive worktrees and orphaned agent branches
+python -m src.cli worktrees:clean --force
+```
+
+---
+
+## 🛡️ Reliability, Quotas & Safety Controls
+
+High-autonomy execution requires hard programmatic constraints to prevent runaways, runaway cloud costs, and filesystem corruption:
+
+- **Context Management & Compaction**: Working context is continuously monitored. If token usage crosses 80,000 tokens (`TOKEN_ALERT_THRESHOLD`), the context manager triggers intermediate compaction, replacing raw shell outputs with concise structured summaries.
+- **Iteration Quotas**: Every worker loop enforces a strict iteration threshold (`MAX_LOOP_ITERATIONS=15`). If objective tests do not pass within this quota, execution halts, state is persisted, and human intervention is flagged.
+- **Execution Boundary Sandbox**: Shell execution tools are scoped strictly to the assigned `.worktrees/<task-id>` path. Destructive global commands (`rm -rf /`, `mkfs`, raw operations touching `.git` root) are intercepted and rejected.
+- **Protected Branch Locking**: Agents cannot push or merge directly to `main` or production branches. Merging requires synthesis passing and final human supervisor review.
+
+---
+
+## 🤝 Contributing & Development
+
+We welcome contributions to AgentGraph! To get started:
+
+1. Fork the repository and create your feature branch:
+   ```bash
+   git checkout -b feature/dynamic-dag-pruning
+   ```
+2. Run test suites and format checks:
+   ```bash
+   pytest tests/ -v
+   ```
+3. Submit a Pull Request detailing the changes, benchmark metrics, and test coverage.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
