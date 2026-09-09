@@ -2,6 +2,7 @@
 import os
 import json
 import uuid
+import shutil
 import datetime
 from pathlib import Path
 from enum import Enum
@@ -32,6 +33,7 @@ class MemoryStatus(str, Enum):
 
 class MemoryRecord(BaseModel):
     id: str = Field(default_factory=lambda: f"mem_{uuid.uuid4().hex[:8]}")
+    session_id: str = "sess_01"
     type: MemoryType = MemoryType.EPISODIC
     content: str
     scope: MemoryScope = MemoryScope.PROJECT
@@ -57,6 +59,7 @@ class DreamProposal(BaseModel):
     id: str = Field(default_factory=lambda: f"prop_{uuid.uuid4().hex[:8]}")
     operation: ProposalOperation
     target_memory_ids: List[str] = Field(default_factory=list)
+    topic_file: Optional[str] = None
     resulting_content: str
     resulting_type: MemoryType = MemoryType.SEMANTIC
     reason: str
@@ -80,6 +83,10 @@ class MemoryManager:
       .agents/
         ├── project_state.json       (Shared project state & active constraints)
         ├── versions.json            (Memory version registry & audit history)
+        ├── team_memory/             (Shared human/agent topic markdown documents)
+        │   ├── scanner-rules.md
+        │   ├── compliance-pci.md
+        │   └── deploy.md
         ├── semantic/                (Human-readable Markdown semantic memories)
         │   ├── {mem_id}.md
         │   └── archive/
@@ -99,6 +106,7 @@ class MemoryManager:
         else:
             self.base_dir = Path(base_dir)
 
+        self.team_memory_dir = self.base_dir / "team_memory"
         self.semantic_dir = self.base_dir / "semantic"
         self.semantic_archive_dir = self.semantic_dir / "archive"
         self.episodic_dir = self.base_dir / "episodic"
@@ -112,6 +120,7 @@ class MemoryManager:
 
     def _init_storage(self):
         """Initializes the directory structure and baseline manifests."""
+        self.team_memory_dir.mkdir(parents=True, exist_ok=True)
         self.semantic_dir.mkdir(parents=True, exist_ok=True)
         self.semantic_archive_dir.mkdir(parents=True, exist_ok=True)
         self.episodic_dir.mkdir(parents=True, exist_ok=True)
@@ -332,10 +341,14 @@ class MemoryManager:
                     importance=0.9,
                     confidence=prop.confidence,
                     source=prop.source_dream_agent,
-                    metadata={"merged_from": prop.target_memory_ids, "reason": prop.reason},
+                    metadata={"merged_from": prop.target_memory_ids, "reason": prop.reason, "topic_file": prop.topic_file},
                     version=new_version_num,
                 )
                 self._write_semantic_record(new_mem)
+
+                # Also update topic file in team_memory/
+                if prop.topic_file:
+                    self._append_or_update_topic_doc(prop.topic_file, prop.resulting_content)
 
             elif prop.operation == ProposalOperation.CREATE:
                 new_mem = MemoryRecord(
@@ -345,10 +358,14 @@ class MemoryManager:
                     importance=0.85,
                     confidence=prop.confidence,
                     source=prop.source_dream_agent,
-                    metadata={"reason": prop.reason},
+                    metadata={"reason": prop.reason, "topic_file": prop.topic_file},
                     version=new_version_num,
                 )
                 self._write_semantic_record(new_mem)
+
+                # Also update topic file in team_memory/
+                if prop.topic_file:
+                    self._append_or_update_topic_doc(prop.topic_file, prop.resulting_content)
 
         # Calculate active records count
         active_count = len(self.recall(limit=10000))
@@ -368,6 +385,132 @@ class MemoryManager:
 
         self._current_version = new_version_num
         return ver
+
+    def _append_or_update_topic_doc(self, topic_file_name: str, content: str):
+        """Appends or creates a topic document in team_memory/."""
+        topic_path = self.team_memory_dir / topic_file_name
+        title = topic_file_name.replace(".md", "").replace("-", " ").title()
+        if topic_path.exists():
+            existing = topic_path.read_text(encoding="utf-8").strip()
+            if content not in existing:
+                topic_path.write_text(f"{existing}\n\n- {content}\n", encoding="utf-8")
+        else:
+            topic_path.write_text(f"# {title}\n\n- {content}\n", encoding="utf-8")
+
+    def read_topic_doc(self, topic_name: str) -> Optional[str]:
+        """Reads a topic-based Markdown document from team_memory/."""
+        topic_file = self.team_memory_dir / topic_name
+        if topic_file.exists():
+            return topic_file.read_text(encoding="utf-8")
+        return None
+
+    def write_topic_doc(self, topic_name: str, content: str, title: Optional[str] = None):
+        """Writes or updates a topic document in team_memory/."""
+        topic_file = self.team_memory_dir / topic_name
+        if not title:
+            title = topic_name.replace(".md", "").replace("-", " ").title()
+        doc = f"# {title}\n\n{content.strip()}\n"
+        topic_file.write_text(doc, encoding="utf-8")
+
+    def list_topic_docs(self) -> Dict[str, str]:
+        """Returns all topic documents currently in team_memory/."""
+        docs = {}
+        for p in self.team_memory_dir.glob("*.md"):
+            if p.is_file():
+                docs[p.name] = p.read_text(encoding="utf-8")
+        return docs
+
+    def get_session_transcripts(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Groups episodic and project event records into separate session transcripts."""
+        transcripts: Dict[str, List[Dict[str, Any]]] = {}
+        log_file = self.episodic_dir / "episodic_log.jsonl"
+        if log_file.exists():
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        sess_id = data.get("session_id") or data.get("metadata", {}).get("session_id", "sess_01")
+                        if sess_id not in transcripts:
+                            transcripts[sess_id] = []
+                        transcripts[sess_id].append(data)
+                    except Exception:
+                        continue
+
+        for st in self._read_project_state():
+            sess_id = st.session_id or st.metadata.get("session_id", "sess_03")
+            if sess_id not in transcripts:
+                transcripts[sess_id] = []
+            transcripts[sess_id].append(st.model_dump())
+
+        return transcripts
+
+    def clone_to_staging(self, staging_dir: Optional[Union[str, Path]] = None) -> "MemoryManager":
+        """Clones current memory store to an isolated staging directory ($MEM -> $MEM_OUT)."""
+        if staging_dir:
+            target_path = Path(staging_dir)
+        else:
+            staging_id = uuid.uuid4().hex[:8]
+            target_path = self.base_dir.parent / f"{self.base_dir.name}_staging_{staging_id}"
+
+        if target_path.exists():
+            shutil.rmtree(target_path, ignore_errors=True)
+
+        shutil.copytree(self.base_dir, target_path)
+        return MemoryManager(base_dir=target_path)
+
+    def commit_staging(self, staging_manager: "MemoryManager", backup: bool = True) -> MemoryVersion:
+        """Atomically promotes the staging store ($MEM_OUT) to production ($MEM)."""
+        backup_dir = None
+        if backup and self.base_dir.exists():
+            backup_id = uuid.uuid4().hex[:8]
+            backup_dir = self.base_dir.parent / f"{self.base_dir.name}_backup_{backup_id}"
+            shutil.copytree(self.base_dir, backup_dir)
+
+        try:
+            # Overwrite canonical directory with staging content
+            for item in staging_manager.base_dir.iterdir():
+                dest = self.base_dir / item.name
+                if item.is_dir():
+                    if dest.exists():
+                        shutil.rmtree(dest)
+                    shutil.copytree(item, dest)
+                else:
+                    shutil.copy2(item, dest)
+
+            # Refresh version
+            versions = self.get_versions()
+            if versions:
+                self._current_version = max(v.version_number for v in versions)
+            else:
+                self._current_version = 1
+
+            # Clean up staging
+            shutil.rmtree(staging_manager.base_dir, ignore_errors=True)
+            # Clean up backup
+            if backup_dir and backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
+
+            return versions[-1] if versions else MemoryVersion(
+                version_number=self._current_version,
+                created_at=datetime.datetime.utcnow().isoformat() + "Z",
+                promoted_proposals_count=0,
+                active_records_count=len(self.recall(limit=1000)),
+                change_summary="Promoted Staging Version",
+            )
+        except Exception as e:
+            # Rollback from backup if error occurs
+            if backup_dir and backup_dir.exists():
+                shutil.rmtree(self.base_dir, ignore_errors=True)
+                shutil.move(str(backup_dir), str(self.base_dir))
+            raise RuntimeError(f"Failed to commit staging memory: {e}")
+
+    def abort_staging(self, staging_manager: "MemoryManager"):
+        """Discards an isolated staging clone without touching canonical memory."""
+        if staging_manager and staging_manager.base_dir.exists():
+            shutil.rmtree(staging_manager.base_dir, ignore_errors=True)
 
     def get_versions(self) -> List[MemoryVersion]:
         """Returns the list of recorded memory versions."""

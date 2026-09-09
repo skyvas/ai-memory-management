@@ -1,5 +1,15 @@
-"""Dreaming Mode consolidation engine: Consolidator, Pattern Finder, Evaluator, and Dream Orchestrator."""
-from typing import List, Dict, Any
+"""Dreaming Mode consolidation engine: Map-Reduce Two-Phase Dreaming with Staging Isolation.
+
+Architecture:
+- Slide 1 (Inside a dreaming pass):
+    1. Clone: $MEM -> $MEM_OUT (staging isolation)
+    2. Map Phase: One subagent per session transcript
+    3. Read / write to reorganize in $MEM_OUT
+- Slide 2 (Unified Memory System):
+    - Real-time updates as agents work <-> team-memory/*.md
+    - Dreaming pass: Verify, Organize, Enrich
+"""
+from typing import List, Dict, Any, Optional
 from src.dev_engine.memory_manager import (
     MemoryManager,
     MemoryRecord,
@@ -8,29 +18,68 @@ from src.dev_engine.memory_manager import (
     DreamProposal,
     ProposalOperation,
 )
+from src.dev_engine.llm_provider import LLMProvider
+
+
+class SessionTranscriptSubagent:
+    """Map Phase: Analyzes a single session's transcript records in isolation."""
+
+    def __init__(self, session_id: str, llm_provider: LLMProvider):
+        self.session_id = session_id
+        self.llm_provider = llm_provider
+
+    def analyze_session(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Digests the session transcript into atomic findings and candidate proposals."""
+        return self.llm_provider.digest_session(self.session_id, records)
 
 
 class Consolidator:
-    """Finds duplicate or equivalent memories and proposes merging them."""
+    """Reduce Phase // Organize: Finds duplicate or overlapping memories across sessions and merges them into topic docs."""
 
-    def analyze(self, snapshot: List[MemoryRecord]) -> List[DreamProposal]:
-        proposals = []
-        # Group memories by topic/theme
+    def __init__(self, llm_provider: Optional[LLMProvider] = None):
+        self.llm_provider = llm_provider or LLMProvider()
+
+    def organize(
+        self,
+        snapshot: List[MemoryRecord],
+        session_findings: List[Dict[str, Any]],
+        existing_topic_docs: Dict[str, str],
+    ) -> List[DreamProposal]:
+        proposals: List[DreamProposal] = []
+
+        # Convert candidate findings into draft proposal dicts
+        candidate_dicts = []
         benchmarks = [m for m in snapshot if "benchmark test" in m.content.lower()]
         if len(benchmarks) >= 2:
-            target_ids = [m.id for m in benchmarks]
+            candidate_dicts.append({
+                "operation": "MERGE",
+                "target_memory_ids": [m.id for m in benchmarks],
+                "topic_file": "test-baselines.md",
+                "resulting_content": (
+                    "Consolidated Benchmark Baseline: Verified database security ingestion and scanner coverage across "
+                    "both SQL (.sql) and MongoDB (.json) dumps with reliable detection of plaintext PII, unhashed passwords, and injection vectors."
+                ),
+                "reason": "Multiple independent benchmark runs verify cross-dialect scanner effectiveness.",
+                "confidence": 0.96,
+                "source_dream_agent": "consolidator",
+            })
+
+        # Ask LLM / local reflection to organize
+        organized_results = self.llm_provider.organize_knowledge(candidate_dicts, existing_topic_docs)
+
+        for item in organized_results:
+            op_str = item.get("operation", "CREATE")
+            op = ProposalOperation[op_str] if op_str in ProposalOperation.__members__ else ProposalOperation.CREATE
             proposals.append(
                 DreamProposal(
-                    operation=ProposalOperation.MERGE,
-                    target_memory_ids=target_ids,
-                    resulting_content=(
-                        "Consolidated Benchmark Baseline: Verified database security ingestion and scanner coverage across "
-                        "both SQL (.sql) and MongoDB (.json) dumps with reliable detection of plaintext PII, unhashed passwords, and injection vectors."
-                    ),
+                    operation=op,
+                    target_memory_ids=item.get("target_memory_ids", []),
+                    topic_file=item.get("topic_file"),
+                    resulting_content=item.get("resulting_content", ""),
                     resulting_type=MemoryType.SEMANTIC,
-                    reason="Multiple independent benchmark runs verify cross-dialect scanner effectiveness.",
-                    confidence=0.96,
-                    source_dream_agent="consolidator",
+                    reason=item.get("reason", "Consolidated redundant memories."),
+                    confidence=float(item.get("confidence", 0.95)),
+                    source_dream_agent=item.get("source_dream_agent", "consolidator"),
                 )
             )
 
@@ -38,49 +87,35 @@ class Consolidator:
 
 
 class PatternFinder:
-    """Searches across episodic experiences to extract higher-level systemic insights."""
+    """Reduce Phase // Enrich: Searches across episodic experiences and session findings to extract systemic patterns."""
 
-    def analyze(self, snapshot: List[MemoryRecord]) -> List[DreamProposal]:
-        proposals = []
+    def __init__(self, llm_provider: Optional[LLMProvider] = None):
+        self.llm_provider = llm_provider or LLMProvider()
 
-        has_sql_critique = any("sql" in m.content.lower() for m in snapshot)
-        has_mongo_critique = any("mongo" in m.content.lower() for m in snapshot)
-        has_pii_research = any("pci-dss" in m.content.lower() or "pan" in m.content.lower() for m in snapshot)
+    def enrich(
+        self,
+        snapshot: List[MemoryRecord],
+        session_findings: List[Dict[str, Any]],
+    ) -> List[DreamProposal]:
+        proposals: List[DreamProposal] = []
+        snapshot_dicts = [m.model_dump() for m in snapshot]
 
-        if has_sql_critique and has_mongo_critique and has_pii_research:
+        # Call LLM / local reflection for cross-session enrichment
+        enriched_results = self.llm_provider.enrich_knowledge(session_findings, snapshot_dicts)
+
+        for item in enriched_results:
+            op_str = item.get("operation", "CREATE")
+            op = ProposalOperation[op_str] if op_str in ProposalOperation.__members__ else ProposalOperation.CREATE
             proposals.append(
                 DreamProposal(
-                    operation=ProposalOperation.CREATE,
-                    target_memory_ids=[],
-                    resulting_content=(
-                        "Systemic Vulnerability Pattern: Unencrypted sensitive credentials and PII (passwords, credit cards, SSNs) "
-                        "are systemic architectural vulnerabilities across both SQL and NoSQL databases. The tool must enforce unified "
-                        "post-scan compliance checks (PCI-DSS 3.4 and GDPR Article 32) regardless of storage format."
-                    ),
+                    operation=op,
+                    target_memory_ids=item.get("target_memory_ids", []),
+                    topic_file=item.get("topic_file"),
+                    resulting_content=item.get("resulting_content", ""),
                     resulting_type=MemoryType.SEMANTIC,
-                    reason="Correlation between SQL and MongoDB security findings reveals storage-agnostic vulnerability patterns.",
-                    confidence=0.94,
-                    source_dream_agent="pattern_finder",
-                )
-            )
-
-        # Pattern for injection handling
-        has_sqli = any("cwe-89" in m.content.lower() or "sql injection" in m.content.lower() for m in snapshot)
-        has_nosqli = any("cwe-943" in m.content.lower() or "$where" in m.content.lower() for m in snapshot)
-        if has_sqli and has_nosqli:
-            proposals.append(
-                DreamProposal(
-                    operation=ProposalOperation.CREATE,
-                    target_memory_ids=[],
-                    resulting_content=(
-                        "Architectural Insight: Query injection vectors occur wherever user input is evaluated dynamically—whether via "
-                        "SQL string concatenation or MongoDB server-side JavaScript ($where). Remediation requires structural separation "
-                        "of code and data across all database interaction layers."
-                    ),
-                    resulting_type=MemoryType.SEMANTIC,
-                    reason="Synthesized common root cause for SQL and NoSQL injection vulnerabilities.",
-                    confidence=0.95,
-                    source_dream_agent="pattern_finder",
+                    reason=item.get("reason", "Synthesized cross-session systemic pattern."),
+                    confidence=float(item.get("confidence", 0.95)),
+                    source_dream_agent=item.get("source_dream_agent", "pattern_finder"),
                 )
             )
 
@@ -88,54 +123,101 @@ class PatternFinder:
 
 
 class DreamEvaluator:
-    """Evaluates dream proposals for safety, accuracy, and usefulness."""
+    """Reduce Phase // Verify: Evaluates dream proposals for safety, accuracy, and usefulness."""
 
-    def evaluate(self, proposals: List[DreamProposal]) -> List[DreamProposal]:
+    def __init__(self, llm_provider: Optional[LLMProvider] = None):
+        self.llm_provider = llm_provider or LLMProvider()
+
+    def verify(self, proposals: List[DreamProposal], context: Optional[Dict[str, Any]] = None) -> List[DreamProposal]:
+        context = context or {}
         evaluated = []
         for prop in proposals:
-            # Score based on confidence threshold and evidence
-            if prop.confidence >= 0.85 and len(prop.resulting_content) > 30:
-                prop.is_approved = True
-            else:
-                prop.is_approved = False
+            verification = self.llm_provider.verify_proposal(prop.model_dump(), context)
+            prop.is_approved = verification.get("is_approved", False)
             evaluated.append(prop)
         return evaluated
 
+    def evaluate(self, proposals: List[DreamProposal]) -> List[DreamProposal]:
+        """Backward-compatible alias for verify."""
+        return self.verify(proposals)
+
 
 class DreamOrchestrator:
-    """Coordinates offline memory consolidation cycle and promotes clean memory versions."""
+    """Coordinates the full Two-Phase Map-Reduce Dreaming Pass with Staging Isolation."""
 
-    def __init__(self, memory_manager: MemoryManager):
+    def __init__(self, memory_manager: MemoryManager, llm_provider: Optional[LLMProvider] = None):
         self.memory_manager = memory_manager
-        self.consolidator = Consolidator()
-        self.pattern_finder = PatternFinder()
-        self.evaluator = DreamEvaluator()
+        self.llm_provider = llm_provider or LLMProvider()
+        self.consolidator = Consolidator(self.llm_provider)
+        self.pattern_finder = PatternFinder(self.llm_provider)
+        self.evaluator = DreamEvaluator(self.llm_provider)
 
-    def run_dream_cycle(self) -> Dict[str, Any]:
-        # 1. Take memory snapshot
-        snapshot = self.memory_manager.snapshot()
+    def run_dream_cycle(self, use_staging: bool = True) -> Dict[str, Any]:
+        """Executes the complete dreaming pass:
+        1. Clone $MEM -> $MEM_OUT (staging isolation)
+        2. Map: One subagent per session transcript
+        3. Reduce: Verify, Organize, Enrich
+        4. Atomic commit to production team-memory
+        """
+        # 1. Step 1 (Photo): Clone $MEM -> $MEM_OUT
+        target_manager = self.memory_manager
+        staging_manager = None
+        if use_staging:
+            staging_manager = self.memory_manager.clone_to_staging()
+            target_manager = staging_manager
 
-        # 2. Gather proposals from dream agents
-        proposals: List[DreamProposal] = []
-        proposals.extend(self.consolidator.analyze(snapshot))
-        proposals.extend(self.pattern_finder.analyze(snapshot))
+        try:
+            snapshot = target_manager.snapshot()
+            transcripts = target_manager.get_session_transcripts()
 
-        # 3. Evaluate proposals
-        evaluated_proposals = self.evaluator.evaluate(proposals)
-        approved_proposals = [p for p in evaluated_proposals if p.is_approved]
+            # Ensure default session if transcripts dict is empty
+            if not transcripts:
+                transcripts["sess_01"] = [m.model_dump() for m in snapshot]
 
-        # 4. Promote new memory version
-        summary_text = (
-            f"Consolidated {len(approved_proposals)} knowledge insights: "
-            f"merged duplicate benchmarks and established systemic security patterns."
-        )
-        new_version = self.memory_manager.promote_version(approved_proposals, summary_text)
+            # 2. Step 2 (Photo): MAP PHASE - One Subagent per Session Transcript
+            session_findings = []
+            for session_id, records in transcripts.items():
+                subagent = SessionTranscriptSubagent(session_id, self.llm_provider)
+                digest = subagent.analyze_session(records)
+                session_findings.append(digest)
 
-        return {
-            "status": "completed",
-            "snapshot_records_count": len(snapshot),
-            "proposals_count": len(proposals),
-            "approved_proposals_count": len(approved_proposals),
-            "new_version": new_version.model_dump(),
-            "proposals": [p.model_dump() for p in evaluated_proposals],
-        }
+            # 3. Step 3 (Photo & Slide 2): REDUCE PHASE - Organize & Enrich
+            existing_topics = target_manager.list_topic_docs()
+            proposals: List[DreamProposal] = []
+            # Organize
+            proposals.extend(self.consolidator.organize(snapshot, session_findings, existing_topics))
+            # Enrich
+            proposals.extend(self.pattern_finder.enrich(snapshot, session_findings))
+
+            # 4. Slide 2: VERIFY
+            evaluated_proposals = self.evaluator.verify(proposals, {"session_findings_count": len(session_findings)})
+            approved_proposals = [p for p in evaluated_proposals if p.is_approved]
+
+            # 5. Apply changes to $MEM_OUT
+            summary_text = (
+                f"Dreaming Pass Consolidated {len(approved_proposals)} knowledge insights across "
+                f"{len(transcripts)} session transcripts: verified benchmarks and enriched topic guides."
+            )
+            new_version = target_manager.promote_version(approved_proposals, summary_text)
+
+            # 6. Atomic Commit: promote staging $MEM_OUT -> $MEM
+            if staging_manager:
+                final_version = self.memory_manager.commit_staging(staging_manager)
+            else:
+                final_version = new_version
+
+            return {
+                "status": "completed",
+                "sessions_processed": list(transcripts.keys()),
+                "sessions_count": len(transcripts),
+                "snapshot_records_count": len(snapshot),
+                "proposals_count": len(proposals),
+                "approved_proposals_count": len(approved_proposals),
+                "new_version": final_version.model_dump(),
+                "proposals": [p.model_dump() for p in evaluated_proposals],
+                "topics_updated": list(self.memory_manager.list_topic_docs().keys()),
+            }
+        except Exception as e:
+            if staging_manager:
+                self.memory_manager.abort_staging(staging_manager)
+            raise e

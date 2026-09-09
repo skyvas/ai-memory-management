@@ -129,3 +129,85 @@ def test_dev_agents_and_dream_cycle_in_agents_dir(temp_agents_dir):
     assert len(mm.recall(limit=100)) == 0
     assert mm.get_versions()[0].version_number == 1
     assert len(list((temp_agents_dir / "semantic").glob("*.md"))) == 0
+
+
+def test_map_reduce_dream_pass_with_multiple_sessions(temp_agents_dir):
+    """Verifies Slide 1 (Map-Reduce per session subagent) and Slide 2 (Verify, Organize, Enrich into team-memory)."""
+    mm = MemoryManager(base_dir=temp_agents_dir)
+
+    # 1. Active waking sessions
+    agent_a = ResearchAgent(mm, default_session_id="sess_01")
+    agent_b = CodingAgent(mm, default_session_id="sess_02")
+    agent_c = PlanningAgent(mm, default_session_id="sess_03")
+
+    agent_a.run("PII and SQLi Research", {})
+    agent_b.run("Benchmark scanners", {
+        "sql_sample": "samples/vulnerable_store.sql",
+        "mongo_sample": "samples/mongo_users.json"
+    })
+    agent_c.run("Milestone tracking", {})
+
+    # Check session transcripts partitioning
+    transcripts = mm.get_session_transcripts()
+    assert "sess_01" in transcripts
+    assert "sess_02" in transcripts
+    assert "sess_03" in transcripts
+    assert len(transcripts["sess_01"]) >= 3
+    assert len(transcripts["sess_02"]) >= 3
+
+    # Check real-time update in team_memory/
+    deploy_doc = mm.read_topic_doc("deploy.md")
+    assert deploy_doc is not None
+    assert "Sprint Milestone 1 Verified" in deploy_doc
+
+    # 2. Run Dreaming Pass
+    orchestrator = DreamOrchestrator(mm)
+    dream_res = orchestrator.run_dream_cycle(use_staging=True)
+
+    assert dream_res["status"] == "completed"
+    assert dream_res["sessions_count"] == 3
+    assert set(dream_res["sessions_processed"]) == {"sess_01", "sess_02", "sess_03"}
+    assert dream_res["approved_proposals_count"] >= 1
+    assert dream_res["new_version"]["version_number"] == 2
+
+    # Check team_memory topic documents were created/updated
+    topic_docs = mm.list_topic_docs()
+    assert "deploy.md" in topic_docs
+    assert "scanner-rules.md" in topic_docs or "compliance-pci.md" in topic_docs or "test-baselines.md" in topic_docs
+
+
+def test_staging_isolation_and_atomic_commit(temp_agents_dir):
+    """Verifies that dreaming operations in $MEM_OUT do not affect $MEM until atomic commit."""
+    mm = MemoryManager(base_dir=temp_agents_dir)
+    mm.remember(MemoryRecord(content="Production baseline rule", type=MemoryType.SEMANTIC, importance=0.9))
+
+    initial_version = mm.get_versions()[-1].version_number
+    initial_semantics_count = len(list((temp_agents_dir / "semantic").glob("*.md")))
+
+    # 1. Clone to Staging ($MEM -> $MEM_OUT)
+    staging_mm = mm.clone_to_staging()
+    assert staging_mm.base_dir.exists()
+    assert staging_mm.base_dir != mm.base_dir
+
+    # 2. Mutate in staging ($MEM_OUT)
+    staging_mm.remember(MemoryRecord(content="Draft experimental finding in staging", type=MemoryType.SEMANTIC, importance=0.9))
+    staging_mm.write_topic_doc("staging-test.md", "Content only in staging")
+
+    # Verify canonical memory ($MEM) is completely untouched!
+    assert not (temp_agents_dir / "team_memory" / "staging-test.md").exists()
+    assert len(list((temp_agents_dir / "semantic").glob("*.md"))) == initial_semantics_count
+
+    # 3. Test Abort/Rollback: aborting removes staging with zero effect on canonical
+    mm.abort_staging(staging_mm)
+    assert not staging_mm.base_dir.exists()
+    assert mm.get_versions()[-1].version_number == initial_version
+
+    # 4. Now test successful atomic commit
+    staging_mm2 = mm.clone_to_staging()
+    staging_mm2.write_topic_doc("verified-rules.md", "Approved rules from dreaming pass")
+    committed_version = mm.commit_staging(staging_mm2)
+
+    assert committed_version.version_number == initial_version
+    assert (temp_agents_dir / "team_memory" / "verified-rules.md").exists()
+    assert "Approved rules from dreaming pass" in mm.read_topic_doc("verified-rules.md")
+

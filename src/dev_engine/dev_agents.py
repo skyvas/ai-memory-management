@@ -18,9 +18,10 @@ except ImportError:
 
 
 class Agent:
-    def __init__(self, name: str, memory_manager: MemoryManager):
+    def __init__(self, name: str, memory_manager: MemoryManager, default_session_id: str = "sess_01"):
         self.name = name
         self.memory_manager = memory_manager
+        self.default_session_id = default_session_id
 
     def run(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError
@@ -29,10 +30,11 @@ class Agent:
 class ResearchAgent(Agent):
     """Researches vulnerability standards, compliance constraints, and detection specifications."""
 
-    def __init__(self, memory_manager: MemoryManager):
-        super().__init__(name="research_agent", memory_manager=memory_manager)
+    def __init__(self, memory_manager: MemoryManager, default_session_id: str = "sess_01"):
+        super().__init__(name="research_agent", memory_manager=memory_manager, default_session_id=default_session_id)
 
     def run(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        session_id = context.get("session_id", self.default_session_id)
         results = []
 
         # 1. Analyze PCI-DSS requirements
@@ -42,13 +44,14 @@ class ResearchAgent(Agent):
         )
         mem1 = self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=pci_note,
                 scope=MemoryScope.PROJECT,
                 importance=0.9,
                 confidence=0.98,
                 source=self.name,
-                metadata={"standard": "PCI-DSS 3.4", "task": task},
+                metadata={"standard": "PCI-DSS 3.4", "task": task, "session_id": session_id},
             )
         )
         results.append(mem1.content if mem1 else "")
@@ -60,13 +63,14 @@ class ResearchAgent(Agent):
         )
         mem2 = self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=sqli_note,
                 scope=MemoryScope.PROJECT,
                 importance=0.88,
                 confidence=0.95,
                 source=self.name,
-                metadata={"cwe": "CWE-89", "task": task},
+                metadata={"cwe": "CWE-89", "task": task, "session_id": session_id},
             )
         )
         results.append(mem2.content if mem2 else "")
@@ -78,19 +82,21 @@ class ResearchAgent(Agent):
         )
         mem3 = self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=nosql_note,
                 scope=MemoryScope.PROJECT,
                 importance=0.92,
                 confidence=0.99,
                 source=self.name,
-                metadata={"cwe": "CWE-943", "task": task},
+                metadata={"cwe": "CWE-943", "task": task, "session_id": session_id},
             )
         )
         results.append(mem3.content if mem3 else "")
 
         return {
             "agent": self.name,
+            "session_id": session_id,
             "status": "completed",
             "findings_count": len(results),
             "summary": "Completed research on PCI-DSS 3.4, CWE-89 (SQLi), and CWE-943 (NoSQL $where injection).",
@@ -100,13 +106,14 @@ class ResearchAgent(Agent):
 class CodingAgent(Agent):
     """Benchmarks scanner rules, audits test datasets, and logs performance and edge cases."""
 
-    def __init__(self, memory_manager: MemoryManager):
-        super().__init__(name="coding_agent", memory_manager=memory_manager)
+    def __init__(self, memory_manager: MemoryManager, default_session_id: str = "sess_02"):
+        super().__init__(name="coding_agent", memory_manager=memory_manager, default_session_id=default_session_id)
         self.sql_ingester = SQLIngester() if SQLIngester else None
         self.mongo_ingester = MongoIngester() if MongoIngester else None
         self.scanner = VulnerabilityScanner() if VulnerabilityScanner else None
 
     def run(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        session_id = context.get("session_id", self.default_session_id)
         critiques = []
 
         # Benchmark 1: Test SQL
@@ -128,13 +135,14 @@ class CodingAgent(Agent):
         )
         self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=sql_critique,
                 scope=MemoryScope.TASK,
                 importance=0.85,
                 confidence=0.95,
                 source=self.name,
-                metadata={"file": sql_path, "risk_score": risk_score},
+                metadata={"file": sql_path, "risk_score": risk_score, "session_id": session_id},
             )
         )
         critiques.append(sql_critique)
@@ -156,13 +164,14 @@ class CodingAgent(Agent):
         )
         self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=mongo_critique,
                 scope=MemoryScope.TASK,
                 importance=0.87,
                 confidence=0.96,
                 source=self.name,
-                metadata={"file": mongo_path, "risk_score": m_risk_score},
+                metadata={"file": mongo_path, "risk_score": m_risk_score, "session_id": session_id},
             )
         )
         critiques.append(mongo_critique)
@@ -174,19 +183,21 @@ class CodingAgent(Agent):
         )
         self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.EPISODIC,
                 content=edge_case_note,
                 scope=MemoryScope.PROJECT,
                 importance=0.78,
                 confidence=0.90,
                 source=self.name,
-                metadata={"improvement_target": "password_entropy"},
+                metadata={"improvement_target": "password_entropy", "session_id": session_id},
             )
         )
         critiques.append(edge_case_note)
 
         return {
             "agent": self.name,
+            "session_id": session_id,
             "status": "completed",
             "benchmarks_run": 2,
             "critiques": critiques,
@@ -196,28 +207,51 @@ class CodingAgent(Agent):
 class PlanningAgent(Agent):
     """Tracks project milestones, test coverage, and priority rule improvements."""
 
-    def __init__(self, memory_manager: MemoryManager):
-        super().__init__(name="planning_agent", memory_manager=memory_manager)
+    def __init__(self, memory_manager: MemoryManager, default_session_id: str = "sess_03"):
+        super().__init__(name="planning_agent", memory_manager=memory_manager, default_session_id=default_session_id)
 
     def run(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        session_id = context.get("session_id", self.default_session_id)
         milestone = (
             "Sprint Milestone 1 Verified: SQL DDL/INSERT and MongoDB JSON/JSONL ingestion engines are operating with "
             "automated PII (Luhn credit cards & SSNs), SQLi, and NoSQL injection detection. Next focus: live UI streaming and user roles."
         )
         self.memory_manager.remember(
             MemoryRecord(
+                session_id=session_id,
                 type=MemoryType.PROJECT_STATE,
                 content=milestone,
                 scope=MemoryScope.GLOBAL,
                 importance=0.95,
                 confidence=1.0,
                 source=self.name,
-                metadata={"milestone": "Phase 1 Complete", "task": task},
+                metadata={"milestone": "Phase 1 Complete", "task": task, "session_id": session_id},
             )
+        )
+
+        self.memory_manager.remember(
+            MemoryRecord(
+                session_id=session_id,
+                type=MemoryType.EPISODIC,
+                content=f"Sprint Deployment Audit ({session_id}): {milestone}",
+                scope=MemoryScope.PROJECT,
+                importance=0.88,
+                confidence=1.0,
+                source=self.name,
+                metadata={"milestone": "Phase 1 Complete", "task": task, "session_id": session_id},
+            )
+        )
+
+        # Real-time update to team-memory markdown doc
+        self.memory_manager.write_topic_doc(
+            "deploy.md",
+            f"Active Deployment Track: Sprint Milestone 1 Verified.\nCoverage: SQL + Mongo Ingestion.\nLatest Update by: {self.name} ({session_id})",
+            title="Deploy & Release Status",
         )
 
         return {
             "agent": self.name,
+            "session_id": session_id,
             "status": "completed",
             "active_milestone": "Phase 1 Complete",
         }
