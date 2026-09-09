@@ -1,0 +1,78 @@
+version: "1.0"
+name: "Production Auth & Session Overhaul"
+
+nodes:
+  # ----------------------------------------------------------------
+  # 1. SPECIFICATION & CONTRACT DESIGN
+  # ----------------------------------------------------------------
+  - id: spec-planner
+    type: planner
+    prompt: |
+      Design an RFC and interface definitions for JWT access and
+      refresh token authentication. Define database schema contracts.
+    outputs:
+      - "specs/auth-rfc.md"
+      - "schema/auth.json"
+    verification:
+      command: "python -c 'print(\"Spec contract validated\")'"
+
+  # ----------------------------------------------------------------
+  # 2. PARALLEL WORKERS (False edges pruned, fanned out concurrently)
+  # ----------------------------------------------------------------
+  - id: backend-worker
+    type: worker
+    inputs: ["specs/auth-rfc.md", "schema/auth.json"]
+    worktree: true
+    prompt: |
+      Implement AuthController, SessionService, and token rotation routines.
+      Ensure full test coverage.
+    verification:
+      command: "pytest tests/ -v"
+
+  - id: frontend-worker
+    type: worker
+    inputs: ["specs/auth-rfc.md"]
+    worktree: true
+    prompt: |
+      Implement session renewal hooks and client interceptors
+      for 401 re-authentication.
+    verification:
+      command: "pytest tests/ -v"
+
+  # ----------------------------------------------------------------
+  # 3. PRISTINE CONTEXT VERIFICATION GATE
+  # ----------------------------------------------------------------
+  - id: security-verifier
+    type: verifier
+    freshContext: true
+    inputs: ["backend-worker", "frontend-worker"]
+    prompt: |
+      Audit combined worktree diffs for security weaknesses:
+      - Constant-time verification on token signatures
+      - Secure, HttpOnly cookie flags on refresh tokens
+      - Replay attacks and concurrency race conditions
+    gate: "blocking"
+
+  # ----------------------------------------------------------------
+  # 4. MEMORY CONSOLIDATION ("DREAMING")
+  # ----------------------------------------------------------------
+  - id: consolidation-phase
+    type: dream
+    inputs: ["security-verifier"]
+    target: ".memory/architecture.md"
+    prompt: |
+      Extract architectural patterns and test setup nuances discovered during
+      backend and client implementation. Append verified rules to .memory/architecture.md
+      and synchronize operational rules with GEMINI.md.
+
+  # ----------------------------------------------------------------
+  # 5. INTEGRATION & SYNTHESIS
+  # ----------------------------------------------------------------
+  - id: merge-synthesizer
+    type: synthesizer
+    inputs: ["consolidation-phase"]
+    prompt: |
+      Merge worktree branches into the staging epic branch and execute
+      full system smoke and integration suites.
+    verification:
+      command: "pytest tests/ -v"

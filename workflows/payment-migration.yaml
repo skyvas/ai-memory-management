@@ -1,0 +1,37 @@
+version: "1.0"
+name: "Multi-Table Payment Schema Migration"
+
+nodes:
+  - id: migration-planner
+    type: planner
+    prompt: |
+      Generate zero-downtime migration scripts and shadow write models
+      for payment ledger tables.
+    outputs:
+      - "migrations/001_payment_ledger.sql"
+    verification:
+      command: "python -c 'print(\"Migration plan valid\")'"
+
+  - id: ledger-worker
+    type: worker
+    inputs: ["migrations/001_payment_ledger.sql"]
+    worktree: true
+    prompt: |
+      Implement atomic ledger write service with dual-write reconciliation.
+    verification:
+      command: "pytest tests/ -v"
+
+  - id: reconciliation-verifier
+    type: verifier
+    freshContext: true
+    inputs: ["ledger-worker"]
+    prompt: |
+      Verify data consistency guarantees and idempotent retry semantics.
+    gate: "blocking"
+
+  - id: migration-dream
+    type: dream
+    inputs: ["reconciliation-verifier"]
+    target: ".memory/architecture.md"
+    prompt: |
+      Consolidate ledger transaction invariants into system architecture memory.

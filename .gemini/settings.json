@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "postToolUse": {
+      "edit": "python -m black --quiet {filepath} 2>/dev/null || true",
+      "write": "python -m black --quiet {filepath} 2>/dev/null || true"
+    }
+  }
+}
