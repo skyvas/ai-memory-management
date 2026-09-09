@@ -1,0 +1,28 @@
+[
+  {
+    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "username": "dave_ops",
+    "password": "MySecretProductionPassword2026",
+    "email": "dave@cloudcorp.io",
+    "ssn": "882-19-4501",
+    "role": "admin"
+  },
+  {
+    "_id": "64f1a2b3c4d5e6f7a8b9c0d2",
+    "username": "emma_finance",
+    "password": "FinanceMasterKey!",
+    "email": "emma@cloudcorp.io",
+    "api_key": "AKIAIOSFODNN7EXAMPLE",
+    "payment_profile": {
+      "card_number": "4111111111111111",
+      "billing_zip": "94105"
+    }
+  },
+  {
+    "_id": "query_export_audit",
+    "description": "Unsafe administrative search query",
+    "query": {
+      "$where": "function() { return this.password.length > 5 && (sleep(500) || true); }"
+    }
+  }
+]

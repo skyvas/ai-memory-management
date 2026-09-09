@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "item_9001",
+    "product_name": "UltraShield DB Sentinel",
+    "category": "Security Software",
+    "price": 299.00,
+    "in_stock": true,
+    "tags": ["database", "audit", "compliance"]
+  },
+  {
+    "_id": "item_9002",
+    "product_name": "Cloud Vault Enclave",
+    "category": "Encryption Hardware",
+    "price": 1499.00,
+    "in_stock": false,
+    "tags": ["hsm", "encryption", "kms"]
+  }
+]

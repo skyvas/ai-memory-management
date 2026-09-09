@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DataSec DB // Enterprise Database Vulnerability & Compliance Auditor</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="top-nav">
+    <div class="nav-left">
+      <div class="brand-logo">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4" stroke="#00f2fe" stroke-width="2"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-title">DataSec DB</span>
+          <span class="brand-subtitle">// SQLite .db, SQL & MongoDB Security Auditor</span>
+        </div>
+      </div>
+      <div class="live-badge">
+        <span class="pulse-dot"></span>
+        <span id="sse-status-text">Live Auditor Active</span>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <div class="user-profile-badge" id="user-profile-chip">
+        <span class="role-icon">👑</span>
+        <span class="username" id="nav-username">admin</span>
+        <span class="role-tag" id="nav-role">Admin</span>
+      </div>
+
+      <button class="btn btn-outline" id="btn-switch-role" title="Switch User Role (Admin / Analyst)">
+        Switch Role
+      </button>
+
+      <button class="btn btn-danger" id="btn-reset-system" title="Purge all ingested files and scan results back to clean state">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+        </svg>
+        Reset Everything
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="dashboard-container">
+    
+    <!-- Top Metrics Row -->
+    <section class="metrics-row">
+      <!-- Risk Score Card -->
+      <div class="metric-card risk-card" id="risk-score-card">
+        <div class="metric-header">
+          <span class="metric-label">Overall Risk Score</span>
+          <span class="risk-pill critical" id="risk-badge">0/100 Neutral</span>
+        </div>
+        <div class="risk-bar-container">
+          <div class="risk-bar-fill critical" id="risk-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div class="metric-subtext" id="risk-subtext">Awaiting audit execution</div>
+      </div>
+
+      <!-- Vulnerabilities Count Card -->
+      <div class="metric-card">
+        <div class="metric-icon-wrap icon-red">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/>
+          </svg>
+        </div>
+        <div class="metric-info">
+          <div class="metric-value" id="stat-vuln-count">0 <span class="metric-sub-val">Findings</span></div>
+          <div class="metric-breakdown" id="stat-vuln-breakdown">
+            <span class="chip-crit" id="stat-crit-chip">0 Critical</span>
+            <span class="chip-high" id="stat-high-chip">0 High</span>
+            <span class="chip-med" id="stat-med-chip">0 Med</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ingested Files Card -->
+      <div class="metric-card">
+        <div class="metric-icon-wrap icon-blue">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+        </div>
+        <div class="metric-info">
+          <div class="metric-value" id="stat-files-count">0 <span class="metric-sub-val">Files Ingested</span></div>
+          <div class="metric-subtext" id="stat-tables-subtext">SQLite .db, SQL & MongoDB</div>
+        </div>
+      </div>
+
+      <!-- Records Analyzed Card -->
+      <div class="metric-card">
+        <div class="metric-icon-wrap icon-green">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </div>
+        <div class="metric-info">
+          <div class="metric-value" id="stat-records-count">0 <span class="metric-sub-val">Records</span></div>
+          <div class="metric-subtext">Rows, Documents & PRAGMAs Checked</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main 3-Column Layout -->
+    <div class="studio-grid">
+
+      <!-- Left Column: Ingested Database Files & Upload -->
+      <section class="panel panel-files">
+        <div class="panel-header">
+          <h2 class="panel-title">Ingested Database Files</h2>
+          <span class="badge-count" id="files-badge-count">0</span>
+        </div>
+
+        <!-- Ingested Files List -->
+        <div class="file-list" id="ingested-files-list">
+          <div class="empty-state-small" id="empty-files-msg">
+            No files ingested yet. Select a sample below or upload your own file.
+          </div>
+        </div>
+
+        <!-- File Upload Zone (Admin only) -->
+        <div class="upload-zone" id="drop-upload-zone">
+          <input type="file" id="file-input-hidden" accept=".db,.sqlite,.sqlite3,.sql,.json,.jsonl" style="display: none;">
+          <svg class="upload-icon" viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+          </svg>
+          <div class="upload-text">
+            <strong>Click to upload</strong> or drag & drop
+            <div class="upload-hint">Supports .db (SQLite), .sql, .json, .jsonl</div>
+          </div>
+        </div>
+
+        <!-- Quick Sample Ingestion Presets -->
+        <div class="samples-preset-section">
+          <div class="section-subtitle">BENCHMARK SAMPLE AUDITS</div>
+          <div class="sample-btn-group">
+            <button class="btn btn-sample" data-sample="vulnerable_enterprise.db">
+              <span class="sample-tag tag-sql">SQLITE DB</span>
+              <span class="sample-name">vulnerable_enterprise.db</span>
+              <span class="sample-risk">10.5k Rows</span>
+            </button>
+            <button class="btn btn-sample" data-sample="secure_store.db">
+              <span class="sample-tag tag-sql">SQLITE DB</span>
+              <span class="sample-name">secure_store.db</span>
+              <span class="sample-safe">1k Hardened</span>
+            </button>
+            <button class="btn btn-sample" data-sample="vulnerable_store.sql">
+              <span class="sample-tag tag-sql">SQL DUMP</span>
+              <span class="sample-name">vulnerable_store.sql</span>
+              <span class="sample-risk">Vulnerable</span>
+            </button>
+            <button class="btn btn-sample" data-sample="mongo_users.json">
+              <span class="sample-tag tag-mongo">MONGO</span>
+              <span class="sample-name">mongo_users.json</span>
+              <span class="sample-risk">Vulnerable</span>
+            </button>
+            <button class="btn btn-sample" data-sample="secure_store.sql">
+              <span class="sample-tag tag-sql">SQL DUMP</span>
+              <span class="sample-name">secure_store.sql</span>
+              <span class="sample-safe">Hardened</span>
+            </button>
+            <button class="btn btn-sample" data-sample="clean_mongo.json">
+              <span class="sample-tag tag-mongo">MONGO</span>
+              <span class="sample-name">clean_mongo.json</span>
+              <span class="sample-safe">Clean</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Center Column: Live Scan Process & Vulnerability Findings -->
+      <section class="panel panel-findings">
+        <div class="panel-header">
+          <div class="title-with-tabs">
+            <h2 class="panel-title">Vulnerability Findings</h2>
+            <div class="filter-tabs">
+              <button class="tab-btn active" data-filter="ALL">All (<span id="tab-count-all">0</span>)</button>
+              <button class="tab-btn" data-filter="CRITICAL">Critical (<span id="tab-count-crit">0</span>)</button>
+              <button class="tab-btn" data-filter="HIGH">High (<span id="tab-count-high">0</span>)</button>
+              <button class="tab-btn" data-filter="MEDIUM">Medium (<span id="tab-count-med">0</span>)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Scanning Status Banner -->
+        <div class="live-scan-banner" id="live-scan-banner">
+          <div class="banner-top">
+            <div class="banner-status">
+              <span class="radar-dot"></span>
+              <span id="scan-status-message">System idle. Select a file above to begin scanning.</span>
+            </div>
+            <span class="progress-percent" id="scan-progress-pct">0%</span>
+          </div>
+          <div class="scan-progress-bar">
+            <div class="scan-progress-fill" id="scan-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Findings List -->
+        <div class="findings-scroll-container" id="findings-container">
+          <div class="empty-state" id="findings-empty-state">
+            <svg viewBox="0 0 24 24" width="48" height="48" stroke="#4a5568" fill="none" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v4M12 16h.01"/>
+            </svg>
+            <p>No vulnerabilities detected yet.</p>
+            <small>Trigger an audit on any database file to view results.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Vulnerability Deep Dive & Remediation -->
+      <section class="panel panel-detail">
+        <div class="panel-header">
+          <h2 class="panel-title">Vulnerability Detail & Remediation</h2>
+          <div class="detail-actions">
+            <button class="btn btn-sm btn-outline" id="btn-export-report" title="Export Full Markdown Audit Report">
+              Export Report
+            </button>
+          </div>
+        </div>
+
+        <div class="detail-content" id="detail-pane-content">
+          <div class="empty-state" id="detail-empty-state">
+            <p>Select any vulnerability finding from the list to view the offending code snippet, risk impact, and recommended patch.</p>
+          </div>
+
+          <div class="detail-view" id="active-detail-view" style="display: none;">
+            <div class="finding-detail-header">
+              <div class="badge-row">
+                <span class="severity-badge critical" id="detail-severity-badge">CRITICAL</span>
+                <span class="category-badge" id="detail-category-badge">PII_LEAK</span>
+                <span class="cwe-badge" id="detail-cwe-badge">CWE-311</span>
+              </div>
+              <h3 class="detail-title" id="detail-title">Plaintext Credit Card Numbers in INSERT rows</h3>
+              <div class="detail-meta">
+                <span>File: <strong id="detail-file">vulnerable_store.sql</strong></span>
+                <span>Line / Rec: <strong id="detail-line">24</strong></span>
+                <span>Confidence: <strong id="detail-confidence">98%</strong></span>
+              </div>
+            </div>
+
+            <!-- Offending Code Snippet Box -->
+            <div class="code-box-wrapper">
+              <div class="code-box-header code-danger">
+                <span>OFFENDING CODE SNIPPET / RECORD</span>
+                <span class="diff-tag diff-del">- Vulnerable Record</span>
+              </div>
+              <pre class="code-snippet danger" id="detail-snippet"><code>--</code></pre>
+            </div>
+
+            <!-- Remediation Box -->
+            <div class="code-box-wrapper">
+              <div class="code-box-header code-success">
+                <span>RECOMMENDED REMEDIATION (PATCH)</span>
+                <span class="diff-tag diff-add">+ Secure Fix</span>
+              </div>
+              <div class="remediation-text" id="detail-remediation">--</div>
+            </div>
+
+            <!-- Evidence Box -->
+            <div class="evidence-box">
+              <div class="box-label">AUDIT EVIDENCE & IMPACT</div>
+              <p id="detail-evidence">--</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- System Reset Confirmation Modal -->
+  <div class="modal-backdrop" id="reset-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon warning">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/>
+          </svg>
+        </div>
+        <h3 class="modal-title">Reset Everything in Product?</h3>
+      </div>
+      <div class="modal-body">
+        <p>This action will permanently delete all uploaded database files, purge all scanned findings, and reset risk scores back to zero.</p>
+        <p class="text-danger">This action requires <strong>Admin</strong> privileges and cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-cancel-reset">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-reset">Confirm & Reset All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Switch / Login Modal -->
+  <div class="modal-backdrop" id="auth-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon info">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h3 class="modal-title">Sign In / Switch User Role</h3>
+      </div>
+      <div class="modal-body">
+        <div class="auth-helper-cards">
+          <div class="helper-chip" id="preset-admin" title="Login as Admin">
+            <strong>Admin (Full Privileges)</strong>
+            <span>User: <code>admin</code> / Pass: <code>admin</code></span>
+          </div>
+          <div class="helper-chip" id="preset-analyst" title="Login as Analyst">
+            <strong>Analyst (Read-Only)</strong>
+            <span>User: <code>analyst</code> / Pass: <code>analyst</code></span>
+          </div>
+        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="input-username">Username</label>
+            <input type="text" id="input-username" value="admin" required>
+          </div>
+          <div class="form-group">
+            <label for="input-password">Password</label>
+            <input type="password" id="input-password" value="admin" required>
+          </div>
+          <div class="auth-error-msg" id="auth-error-msg" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-cancel-auth">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-login">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Markdown Report Viewer Modal -->
+  <div class="modal-backdrop" id="report-modal" style="display: none;">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <h3 class="modal-title">Exported Security Audit Report</h3>
+        <button class="btn-close" id="btn-close-report">&times;</button>
+      </div>
+      <div class="modal-body">
+        <pre class="report-markdown-view" id="report-markdown-text"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-copy-report">Copy Markdown</button>
+        <button class="btn btn-primary" id="btn-close-report-footer">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

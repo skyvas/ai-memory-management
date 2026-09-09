@@ -15,6 +15,9 @@ build/
 # Local databases & uploads
 *.db
 *.sqlite3
+!samples/*.db
+*.db-shm
+*.db-wal
 dev_memory.db
 test_memory.db
 uploads/
