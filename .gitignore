@@ -1,0 +1,29 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Local databases & uploads
+*.db
+*.sqlite3
+dev_memory.db
+test_memory.db
+uploads/
+
+# Agent memory ephemeral directories
+.agents/working/
+.agents/cache/
+*.tmp
+
+# OS artifacts
+.DS_Store
+Thumbs.db

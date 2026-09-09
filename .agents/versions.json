@@ -1,0 +1,51 @@
+[
+  {
+    "version_number": 1,
+    "created_at": "2026-09-09T08:27:52.391370Z",
+    "promoted_proposals_count": 0,
+    "active_records_count": 0,
+    "change_summary": "Initial Memory Baseline"
+  },
+  {
+    "version_number": 2,
+    "created_at": "2026-09-09T08:27:52.413028Z",
+    "promoted_proposals_count": 3,
+    "active_records_count": 8,
+    "change_summary": "Consolidated 3 knowledge insights: merged duplicate benchmarks and established systemic security patterns."
+  },
+  {
+    "version_number": 3,
+    "created_at": "2026-09-09T09:39:44.988321Z",
+    "promoted_proposals_count": 3,
+    "active_records_count": 16,
+    "change_summary": "Consolidated 3 knowledge insights: merged duplicate benchmarks and established systemic security patterns."
+  },
+  {
+    "version_number": 4,
+    "created_at": "2026-09-09T09:43:28.476730Z",
+    "promoted_proposals_count": 3,
+    "active_records_count": 24,
+    "change_summary": "Consolidated 3 knowledge insights: merged duplicate benchmarks and established systemic security patterns."
+  },
+  {
+    "version_number": 5,
+    "created_at": "2026-09-09T10:23:38.587909Z",
+    "promoted_proposals_count": 2,
+    "active_records_count": 34,
+    "change_summary": "Dreaming Pass Consolidated 2 knowledge insights across 3 session transcripts: verified benchmarks and enriched topic guides."
+  },
+  {
+    "version_number": 6,
+    "created_at": "2026-09-09T10:33:29.165230Z",
+    "promoted_proposals_count": 2,
+    "active_records_count": 44,
+    "change_summary": "Dreaming Pass Consolidated 2 knowledge insights across 3 session transcripts: verified benchmarks and enriched topic guides."
+  },
+  {
+    "version_number": 7,
+    "created_at": "2026-09-09T10:39:36.833844Z",
+    "promoted_proposals_count": 2,
+    "active_records_count": 54,
+    "change_summary": "Dreaming Pass Consolidated 2 knowledge insights across 3 session transcripts: verified benchmarks and enriched topic guides."
+  }
+]

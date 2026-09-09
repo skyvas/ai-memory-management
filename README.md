@@ -1,590 +1,479 @@
-Dreaming Multi-Agent Memory System
-Overview
-This document describes a memory-efficient AI-supported multi-agent
- architecture built around a dreaming process. The central idea is:
- agents generate experience, memory stores experience, and dreaming
- turns experience into knowledge.
-1. System Modes
-The system has two major modes:
-	●	Waking mode: the orchestrator routes tasks to specialized
- agents. Agents retrieve only relevant memories and create new
- memories from useful experience.
-	●	Dreaming mode: an asynchronous process works on a snapshot of
- long-term memory to consolidate, compress, reorganize, connect, and
- evaluate knowledge.
-Dreaming is an engineering metaphor for offline memory consolidation
- rather than a claim about consciousness.
-2. High-Level Architecture
-```text
- User / Events
-       |
-       v
- Agent Orchestrator
-       |
-   +---+---+---+
-   |       |       |
- Research Coding Planning
-   |       |       |
-   +-------+-------+
-           |
-           v
-     Memory Manager
-           |
-    +------+------+
-    |             |
- Working      Long-Term
- Memory        Memory
-                  |
-                  v
-           SQL + Vector Index
-                  |
-               Snapshot
-                  |
-                  v
-          Dream Orchestrator
-                  |
-        +---------+---------+
-        |         |         |
- Consolidator Pattern  Contradiction
-               Finder      Resolver
-        |         |         |
-        +---------+---------+
-                  |
-                  v
-               Evaluator
-                  |
-           Accept / Reject
-                  |
-                  v
-        Consolidated Version
- ```
-3. Waking Mode
-Waking mode is the normal operational state. A user request reaches the
- orchestrator, which decides which agents should work on it. Each agent
- receives the task plus a small, relevant subset of memory.
-The key rule is: shared memory does not mean shared context.
- Multiple agents can access the same memory system without receiving the
- entire history.
-Instead of passing 100,000 tokens of conversation history to every
- agent, the system performs retrieval and supplies perhaps 5–20 relevant
- memories.
-4. Agent Architecture
-Agents should remain independent of the storage implementation. A
- conceptual interface is:
-```python
- class Agent:
-     name: str
+# Dreaming Multi-Agent Memory System
 
-     def run(self, task, context):
-         ...
- ```
-Agents should use a Memory Manager rather than directly accessing
- database tables or vector indexes. This allows the storage and retrieval
- implementation to evolve without rewriting agents.
-5. Memory Manager
-A central memory abstraction can expose operations such as:
-```text
- remember()
- recall()
- search()
- update()
- merge()
- forget()
- archive()
- link()
- snapshot()
- restore()
- ```
-The Memory Manager owns policies for admission, retrieval,
- consolidation, scope, and lifecycle.
-6. Memory Types
-Working memory
-Contains current conversation state, active tasks, temporary reasoning
- results, and intermediate tool outputs. It is small, fast, and
- short-lived.
-Episodic memory
-Stores significant events and interactions: what happened, when it
- happened, and where it came from.
-Semantic memory
-Stores durable knowledge extracted from experience: facts, decisions,
- concepts, constraints, patterns, and relationships.
-Shared project state
-Stores information that multiple agents need to coordinate around, such
- as technology choices, project status, milestones, and current
- objectives.
-7. Memory Scope
-Every memory should have an explicit scope. A useful hierarchy is:
-```text
- User
-   └── Project
-        └── Task
-             └── Agent
- ```
-Possible scopes include global, user, project, task, session, agent, and
- temporary. Scope prevents temporary reasoning from accidentally becoming
- global knowledge.
-Example:
-```json
- {
-   "content": "Use Python 3.13 for the backend.",
-   "scope": "project",
-   "project_id": "proj_123",
-   "importance": 0.9,
-   "confidence": 0.95
- }
- ```
-8. Memory Admission
-Not every conversation statement deserves permanent storage. A
- memory-admission pipeline should be:
-```text
- Interaction
-    -> Candidate information
-    -> Importance filter
-    -> Deduplication
-    -> Compression / summarization
-    -> Classification
-    -> Storage
- ```
-Useful admission signals include importance, durability, confidence,
- recurrence, novelty, future usefulness, user relevance, project
- relevance, and source reliability.
-For example, “Okay, let’s continue” is unlikely to be valuable long-term
- memory, while “The project uses PostgreSQL as its primary database” is
- likely to be valuable.
-9. Memory Representation
-A memory record can contain:
-```json
- {
-   "id": "mem_123",
-   "type": "fact",
-   "content": "The project uses PostgreSQL as its primary database.",
-   "scope": "project",
-   "project_id": "proj_123",
-   "importance": 0.85,
-   "confidence": 0.95,
-   "source": "research_agent",
-   "status": "active"
- }
- ```
-Additional metadata can include source session, source agent, evidence
- count, last accessed time, last confirmed time, expiration, version,
- parent memory, related memories, and embedding.
-10. Hybrid Retrieval
-Retrieval should combine semantic search with structured information.
-```text
- Query
-   |
-   +--> Semantic search
-   |
-   +--> Structured / metadata search
-           |
-           v
-        Re-ranker
-           |
-           v
-   Top relevant memories
- ```
-Signals can include semantic similarity, exact matching, scope, recency,
- importance, confidence, access frequency, and relationship proximity.
-11. The Dreaming Concept
-Dreaming is an asynchronous memory-processing phase. It periodically
- asks:
-> What should be kept, merged, compressed, connected, corrected,
- > archived, or forgotten?
-The lifecycle becomes:
-```text
- Experience -> Remember -> Retrieve -> Dream -> Consolidate -> Forget -> Remember better
- ```
-12. Memory Snapshot
-Dreaming should operate on a copy or versioned snapshot rather than
- directly modifying live memory.
-```text
- LIVE MEMORY
-     |
-     +--> Waking agents continue working
-     |
-     +--> Snapshot --> DREAM MEMORY
-                          |
-                          +--> experiment
-                          +--> consolidate
-                          +--> evaluate
- ```
-If a dream produces poor changes, production memory remains protected.
-13. Dream Orchestrator
-The normal orchestrator asks, “What should the system do now?” The Dream
- Orchestrator asks, “What should the system learn or change about its
- memory?”
-It coordinates specialized dream agents and sends their proposals to an
- evaluator.
-14. Dream Agent Roles
-Consolidator
-Finds duplicate or equivalent memories and merges them.
-Example:
-```text
- “We use PostgreSQL.”
- “Backend database is PostgreSQL.”
- “Our primary DB is Postgres.”
-         |
-         v
- “The project uses PostgreSQL as its primary database.”
- ```
-Pattern Finder
-Searches across sessions and agents for recurring patterns that can
- become higher-level knowledge.
-Contradiction Resolver
-Finds conflicting memories and evaluates timestamps, evidence, source
- reliability, subsequent decisions, and project state. Historical
- information can be preserved while obsolete information is marked
- inactive.
-Memory Compressor
-Reduces many repetitive fragments into a smaller set of useful memories
- while preserving meaning, evidence, provenance, and temporal
- information.
-Relationship Builder
-Builds connections such as uses, depends_on, replaces,
- contradicts, supports, derived_from, related_to, and part_of.
- This moves memory toward a knowledge graph.
-15. Dream Proposals
-Dream agents should normally propose changes rather than directly
- committing them. Proposal operations can include:
-```text
- CREATE
- UPDATE
- MERGE
- DELETE
- ARCHIVE
- LINK
- RECLASSIFY
- CHANGE_SCOPE
- CHANGE_CONFIDENCE
- ```
-Example:
-```json
- {
-   "operation": "merge",
-   "memories": ["mem_101", "mem_203", "mem_404"],
-   "result": "The project uses PostgreSQL as its primary database.",
-   "confidence": 0.94,
-   "reason": "Three independent memories contain equivalent information."
- }
- ```
-16. Dream Evaluator
-The evaluator determines whether proposed changes are safe and useful.
- Possible scoring dimensions are confidence, importance, recency,
- evidence, source reliability, supporting-session count, contradiction
- level, and future usefulness.
-The principle is:
-> Dream agents propose; an evaluation layer decides.
-17. Memory Versioning
-Memory should be versioned rather than treated as one untraceable
- mutable object.
-```text
- Memory v17
-     |
-     +--> Dream cycle
-             |
-             +--> Memory v18
- ```
-Versioning enables auditing, experimentation, comparison, rollback, and
- debugging.
-18. Forgetting and Archiving
-A memory-efficient system needs forgetting. A safer lifecycle is often:
-```text
- active -> stale -> archived -> deleted
- ```
-Archiving removes low-value information from normal retrieval while
- preserving it for historical reconstruction when appropriate.
-19. Memory Decay
-Memory activity can depend on age, access frequency, importance,
- confirmation, project status, relevance, and expiration. Dreaming is a
- natural place to evaluate which memories should remain active.
-20. Cross-Agent Learning
-Different agents can discover different pieces of a larger insight. For
- example:
-```text
- Research Agent: technology constraint
- Coding Agent: implementation limitation
- Planning Agent: deadline
-              |
-              v
-        Dreaming process
-              |
-              v
-      Higher-level project insight
- ```
-Dreaming therefore becomes a mechanism for integrating knowledge that no
- individual agent explicitly discovered.
-21. Dream Workspace
-A dream workspace can contain a temporary memory clone plus candidate
- memories, summaries, proposals, relationships, hypotheses, and
- evaluation results. It can be discarded after promotion or rollback.
-22. Hypothesis Generation
-Dream agents can generate hypotheses from repeated observations. A
- hypothesis should remain separate from confirmed knowledge until
- sufficient evidence exists.
-Example:
-```text
- Observation 1: Several tasks depend on PostgreSQL.
- Observation 2: Multiple agents query database architecture.
-                  |
-                  v
- Hypothesis: Database architecture should be a first-class project memory.
- ```
-23. Safety and Bounded Autonomy
-Dreaming should be bounded by explicit memory operations. It should
- primarily modify memory, metadata, relationships, summaries, and
- knowledge structures. External side effects should require separate
- authorization.
-24. Validation
-Before promoting a dream version, validate:
-	●	Integrity: references remain valid.
-	●	Consistency: contradictions are reduced rather than introduced.
-	●	Compression: redundant information is actually reduced.
-	●	Retrieval quality: important memories remain discoverable.
-	●	Provenance: important new memories can be traced to evidence.
-	●	Regression: useful knowledge was not accidentally lost.
-25. Storage Architecture
-A practical initial storage design is:
-```text
- Memory API
-    |
-    +--> PostgreSQL: durable source of truth
-    |
-    +--> pgvector: semantic retrieval index
-    |
-    +--> Optional Redis: working memory / cache / queues
- ```
-PostgreSQL should hold durable memory records, metadata, relationships,
- sessions, agents, versions, proposals, and audit records. pgvector can
- provide embedding-based retrieval. Redis is optional for short-lived
- state and caching.
-26. Conceptual Data Model
-```text
- users
-   |
-   +--> projects
-         |
-         +--> sessions
-         +--> agents
-         +--> memories
-               |
-               +--> memory_versions
-               +--> memory_links
-               +--> memory_evidence
+An architectural framework for cognitive, memory-efficient multi-agent AI systems. The architecture separates active execution from offline knowledge consolidation, enabling autonomous agents to accumulate experience, synthesize durable knowledge, and collaborate over long horizons without context window degradation.
 
- dream_runs
-   |
-   +--> dream_agents
-   +--> dream_proposals
-   +--> evaluations
-   +--> promoted_changes
- ```
-27. Evidence and Provenance
-A durable memory should be able to answer: Why do we believe this?
-For example:
-```text
- Memory: The project uses PostgreSQL.
- Evidence:
-   - Session 17
-   - Session 21
-   - Architecture decision #4
- ```
-Provenance is especially important when resolving contradictions and
- reassessing memories during future dream cycles.
-28. Confidence and Importance
-Confidence and importance should be separate dimensions. A fact can be
- highly certain but unimportant, or highly important but uncertain.
- Dreaming can use both dimensions when deciding what to promote,
- retrieve, or archive.
-29. Shared Memory vs Shared Context
-Multiple agents can share a memory system without sharing the same LLM
- context. Each agent retrieves the subset relevant to its current task.
- This is one of the main mechanisms for preventing context growth.
-30. End-to-End Example
-A project may evolve like this:
-```text
- Day 1: Research Agent -> PostgreSQL is a candidate.
- Day 2: Coding Agent  -> Prototype uses PostgreSQL.
- Day 5: Planning Agent -> Production architecture uses PostgreSQL.
-               |
-               v
-          Dream cycle
-               |
-               v
- Consolidated memory: Project uses PostgreSQL as primary database.
- ```
-The system can preserve the historical observations while making the
- consolidated fact the active semantic memory.
-31. Recommended Version 1 Architecture
-Start with:
-```text
- User
-  |
- v
- Orchestrator
-  |
- +--> Research Agent
- +--> Coding Agent
- +--> Planning Agent
-  |
- v
- Memory Manager
-  |
- v
- PostgreSQL + pgvector
-  |
- snapshot
- v
- Dream Orchestrator
-  |
- +--> Consolidator
- +--> Pattern Finder
- +--> Contradiction Resolver
-  |
- v
- Evaluator
-  |
- Accept / Reject
-  |
- v
- New Memory Version
- ```
-The MVP should remain simple. The important thing is to prove the memory
- lifecycle before adding sophisticated infrastructure.
-32. Development Roadmap
-Phase 1 — Basic Memory
-Implement agents, Memory Manager, PostgreSQL, pgvector, remember(),
- and recall().
-Phase 2 — Memory Admission
-Add importance, confidence, scope, type, and provenance. Establish rules
- for what becomes persistent memory.
-Phase 3 — Consolidation
-Build the first Dream Agent for duplicate detection, merging, and
- summarization.
-Phase 4 — Evaluation and Versioning
-Add dream proposals, an evaluator, memory versions, validation, and
- rollback.
-Phase 5 — Multiple Dream Agents
-Add pattern discovery, contradiction resolution, compression, and
- relationship building.
-Phase 6 — Advanced Knowledge
-Introduce knowledge graphs, temporal memory, decay, hypothesis
- generation, and deeper cross-agent learning.
-33. Suggested API Surface
-A possible API is:
-```text
- POST  /memory
- GET   /memory/search
- GET   /memory/{id}
- PATCH /memory/{id}
- POST  /memory/{id}/archive
+---
 
- POST  /dream/run
- GET   /dream/{id}
- GET   /dream/{id}/proposals
- POST  /dream/{id}/evaluate
- POST  /dream/{id}/promote
+## 1. Executive Summary & Core Philosophy
 
- GET   /memory/versions
- POST  /memory/versions/{id}/restore
- ```
-34. Observability
-Record:
-	●	which memories were retrieved
-	●	which memories were created
-	●	which memories were updated
-	●	which dream agents proposed changes
-	●	why proposals were accepted or rejected
-	●	which memory version was promoted
-	●	which evidence supported a change
-A memory system without observability can become difficult to trust and
- debug.
-35. Why This Is More Than a Vector Database
-A vector database primarily answers:
-> What stored text is semantically similar to this query?
-A true memory system needs to answer richer questions:
-```text
- What do we know?
- Why do we know it?
- When did we learn it?
- Who learned it?
- Is it still valid?
- What supports it?
- What contradicts it?
- What is it related to?
- How important is it?
- Should it be remembered?
- Should it be forgotten?
- ```
-Vector search is therefore one component of the larger memory
- architecture.
-36. The Core Feedback Loop
-The mature system forms a continuous feedback loop:
-```text
- User
-   |
-   v
- Experience
-   |
-   v
- Agent Work
-   |
-   v
- Memory
-   |
-   v
- Retrieve
-   |
-   v
- Better Work
-   |
-   v
- Memory
-   |
-   v
- Dream
-   |
-   v
- Better Memory Model
-   |
-   +------> Waking Agents
- ```
-37. Final Mental Model
-The architecture can be reduced to three concepts:
-```text
-                 WAKING
-                   |
-           Agents solve tasks
-                   |
-                   v
-              EXPERIENCE
-                   |
-                   v
-           LONG-TERM MEMORY
-                   |
-              periodically
-                   v
-               DREAMING
-                   |
-        +----------+----------+
-        |          |          |
-   Consolidate  Discover   Resolve
-        |       Patterns   Conflicts
-        +----------+----------+
-                   |
-                   v
-           BETTER MEMORY MODEL
-                   |
-                   v
-           WAKING AGENTS
- ```
-The central philosophy is:
-> **Waking agents generate experience. Memory preserves useful
- > experience. Dreaming reorganizes experience into durable knowledge.
- > Retrieval gives each agent only the knowledge it needs. Evaluation
- > prevents uncontrolled memory changes. Versioning makes the process
- > reversible and auditable.**
-This creates a foundation for a memory-efficient multi-agent AI system
- that can grow in capability without requiring every agent to carry the
- complete history of the system in its context.
+State-of-the-art Large Language Model (LLM) agent architectures face critical memory challenges:
+- **Context Bloat:** Stuffing complete conversation histories into prompts causes token exhaustion, high inference costs, and attention degradation ("lost in the middle").
+- **Transient Experience:** Agents forget insights, discoveries, and decisions once a session concludes.
+- **Fragmented Multi-Agent State:** Multiple agents working on shared goals either duplicate knowledge or operate with conflicting assumptions.
+- **Naive Vector Search Limitations:** Vector databases identify surface textual similarity, but cannot resolve contradictions, track changing facts over time, synthesize higher-level patterns, or prune obsolete beliefs.
 
+The **Dreaming Multi-Agent Memory System** resolves these challenges by introducing a biologically inspired cognitive architecture grounded in a single central philosophy:
+
+> **Waking agents generate experience. Memory stores experience. Dreaming turns experience into durable knowledge. Retrieval gives each agent only the precise knowledge it needs.**
+
+---
+
+## 2. System Modes
+
+The system operates across two distinct, complementary modes:
+
+```
++-----------------------------------------------------------------------+
+|                             SYSTEM MODES                              |
++------------------------------------+----------------------------------+
+|            WAKING MODE             |          DREAMING MODE           |
+|        (Active Execution)          |      (Offline Consolidation)     |
++------------------------------------+----------------------------------+
+| - Orchestrator delegates tasks     | - Runs asynchronously in bg      |
+| - Specialized agents execute work  | - Operates on memory snapshot    |
+| - Selective, compact retrieval     | - Merges duplicate memories      |
+| - New experiences recorded to log  | - Resolves contradictions        |
+| - Fast, latency-critical           | - Synthesizes knowledge graph    |
++------------------------------------+----------------------------------+
+```
+
+### Waking Mode (Operational State)
+During waking mode, the system serves users and responds to live events:
+- An **Agent Orchestrator** receives incoming tasks and delegates them to specialized agents (e.g., Research, Coding, Planning).
+- Each agent receives only its immediate task instructions and a compact, highly relevant subset of memory (typically 5–20 focused records), rather than full conversational histories.
+- Agents perform work and emit observations, decisions, and artifacts back to the memory manager as newly formed experience records.
+
+### Dreaming Mode (Consolidation State)
+Dreaming is an engineering metaphor for asynchronous, offline memory consolidation rather than a claim about machine consciousness:
+- The system periodically captures an isolated snapshot of long-term memory.
+- While waking agents continue operating uninterrupted, specialized **Dream Agents** analyze this snapshot in the background.
+- Dreaming processes identify redundancies, reconcile conflicting statements, abstract recurring behaviors into generalized knowledge, construct relationship graphs, and prune stale information.
+- The resulting memory improvements are vetted by an evaluator and promoted as the new canonical memory model.
+
+---
+
+## 3. High-Level Architecture
+
+The end-to-end lifecycle forms a dual-phase feedback loop connecting waking execution with offline dreaming:
+
+```mermaid
+flowchart TD
+    subgraph WAKING_MODE ["Waking Mode (Active Task Execution)"]
+        UserEvents["User / External Events"] --> AgentOrchestrator["Agent Orchestrator"]
+        AgentOrchestrator --> AgentA["Research Agent"]
+        AgentOrchestrator --> AgentB["Coding Agent"]
+        AgentOrchestrator --> AgentC["Planning Agent"]
+        
+        AgentA & AgentB & AgentC <-->|Selective Retrieval & Experience Logging| MemoryManager["Memory Manager"]
+        MemoryManager <--> WorkingMem[".agents/working/ (Ephemeral)"]
+        MemoryManager <--> LongTermMem[".agents/ (Git-Native Storage)"]
+    end
+
+    LongTermMem -.->|Point-in-Time Snapshot| DreamSnapshot[("Isolated Memory Snapshot")]
+
+    subgraph DREAMING_MODE ["Dreaming Mode (Offline Consolidation)"]
+        DreamSnapshot --> DreamOrchestrator["Dream Orchestrator"]
+        
+        DreamOrchestrator --> Consolidator["Consolidator Agent"]
+        DreamOrchestrator --> PatternFinder["Pattern Finder Agent"]
+        DreamOrchestrator --> ContradictionResolver["Contradiction Resolver Agent"]
+        DreamOrchestrator --> Compressor["Memory Compressor Agent"]
+        DreamOrchestrator --> RelationshipBuilder["Relationship Builder Agent"]
+        
+        Consolidator & PatternFinder & ContradictionResolver & Compressor & RelationshipBuilder --> Proposals["Dream Proposals Pool"]
+        
+        Proposals --> DreamEvaluator{"Dream Evaluator"}
+        DreamEvaluator -->|Reject Unsafe / Low-Value| Discarded["Discarded Proposals"]
+        DreamEvaluator -->|Approve & Verify| NewVersion[("Promoted Memory Model (vN+1)")]
+    end
+
+    NewVersion ==>|Promoted Knowledge Updates| LongTermMem
+```
+
+---
+
+## 4. Fundamental Paradigm: Shared Memory vs. Shared Context
+
+A guiding architectural tenet of this system is:
+
+> **Shared memory does not mean shared context.**
+
+In traditional multi-agent systems, agents frequently exchange bloated context windows containing full transcripts of all prior discussions. This approach degrades model attention and rapidly hits token limits.
+
+In this architecture:
+- Multiple agents share access to a single, unified memory repository.
+- Each agent operates within a minimal, task-specific context window.
+- The retrieval engine isolates and supplies only the specific subset of facts, constraints, and historical decisions directly pertinent to the agent's current objective.
+
+---
+
+## 5. Memory Taxonomy
+
+Memory is partitioned into four distinct functional tiers, each serving a specific temporal and operational purpose:
+
+```
++--------------------------------------------------------------------------+
+|                            MEMORY TAXONOMY                               |
++----------------------+--------------------+-------------+----------------+
+| Memory Type          | Content            | Lifespan    | Speed / Scope  |
++----------------------+--------------------+-------------+----------------+
+| Working Memory       | Active dialog,     | Minutes to  | In-memory,     |
+|                      | tool outputs,      | hours       | single session |
+|                      | intermediate steps |             |                |
++----------------------+--------------------+-------------+----------------+
+| Episodic Memory      | Specific events,   | Days to     | Append-only,   |
+|                      | what occurred,     | months      | chronological, |
+|                      | who acted, when    |             | full trace     |
++----------------------+--------------------+-------------+----------------+
+| Semantic Memory      | Distilled facts,   | Permanent / | Structured,    |
+|                      | conventions, rules,| versioned   | high-value,    |
+|                      | verified decisions |             | cross-session  |
++----------------------+--------------------+-------------+----------------+
+| Shared Project State | Project tech stack,| Dynamic     | Globally       |
+|                      | milestones, active | project     | visible to     |
+|                      | team constraints   | lifecycle   | all agents     |
++----------------------+--------------------+-------------+----------------+
+```
+
+1. **Working Memory:** The scratchpad of the active agent. Holds current dialogue state, tool arguments, raw outputs, and temporary hypotheses. Cleared or flushed upon task completion.
+2. **Episodic Memory:** An observational log of interactions and outcomes. Retains temporal and contextual fidelity (e.g., *"Agent B encountered dependency error X when running build Y at timestamp T"*).
+3. **Semantic Memory:** Durable, generalized knowledge derived from experience. Independent of the exact circumstance in which it was learned (e.g., *"The project backend requires Python 3.13 and uses PostgreSQL as its primary database"*).
+4. **Shared Project State:** Centrally managed coordination data that aligns all collaborating agents on technology choices, active milestones, and global project constraints.
+
+---
+
+## 6. Memory Scoping & Access Hierarchy
+
+To ensure information is not accidentally over-generalized, memories are assigned explicit structural scopes:
+
+```
+Global Scope
+  └── User Scope
+       └── Project Scope
+            └── Task Scope
+                 └── Session Scope
+                      └── Agent Scope
+```
+
+- **Scope Isolation:** Prevents ephemeral reasoning or task-specific quirks from polluting the global knowledge base.
+- **Access Control:** Waking agents retrieve information bounded by their operational scope (e.g., an agent executing Task 3 only receives memories from the relevant Project and Task scopes, excluding unrelated tasks).
+- **Promotion Across Scopes:** When a pattern appears repeatedly across individual task sessions, dreaming agents can propose elevating that knowledge from Task scope to Project or User scope.
+
+---
+
+## 7. Memory Admission Pipeline
+
+Not every conversational turn or tool execution deserves permanent retention. Storing uncurated data degrades retrieval accuracy and wastes resources.
+
+The **Memory Admission Pipeline** filters and refines incoming observations before long-term persistence:
+
+```
+Raw Interaction / Tool Output
+              │
+              ▼
+   [ Candidate Extraction ]
+              │
+              ▼
+   [ Importance Filtering ]      ───> Below threshold? Discard
+              │
+              ▼
+    [ Deduplication Check ]      ───> Redundant? Increment evidence count
+              │
+              ▼
+  [ Summarization & Clean-up ]   ───> Strip noise, format concisely
+              │
+              ▼
+   [ Semantic Classification ]   ───> Assign type, scope, metadata
+              │
+              ▼
+  Durable Long-Term Storage
+```
+
+### Admission Criteria & Signals
+- **Durability:** Is this statement temporary chatter (e.g., *"Let's proceed"*) or lasting knowledge (e.g., *"API rate limit is 60 req/min"* )?
+- **Importance vs. Confidence:** Decoupled metrics ensuring that critical yet unverified assertions are treated differently from low-significance confirmed facts.
+- **Novelty & Recurrence:** Whether the information introduces new concepts or reinforces existing memories with fresh evidence.
+- **Source Reliability:** Weights evidence based on the trustworthiness of the reporting agent or data source.
+
+---
+
+## 8. Hybrid Retrieval Engine
+
+Effective memory retrieval requires more than basic keyword matching or naive vector search. The system utilizes a multi-signal hybrid retrieval architecture:
+
+```
+                         User Query / Task Context
+                                     │
+                     ┌───────────────┴───────────────┐
+                     ▼                               ▼
+            Dense Semantic Search         Structured Metadata Search
+          (Embedding Similarity)        (Scope, Type, Project, Tags)
+                     │                               │
+                     └───────────────┬───────────────┘
+                                     ▼
+                        [ Multi-Signal Re-Ranker ]
+                                     │
+                                     ├── Semantic Vector Proximity
+                                     ├── Scope Hierarchy Alignment
+                                     ├── Temporal Recency & Decay
+                                     ├── Importance & Confidence Scores
+                                     └── Knowledge Graph Proximity
+                                     │
+                                     ▼
+                         Top N Relevant Memories
+                         (Injected into Agent Context)
+```
+
+By combining dense vector embeddings with exact metadata filters and graph relationship distances, agents receive precise, context-rich memories without hallucinations or irrelevant context stuffing.
+
+---
+
+## 9. The Dreaming Engine: Offline Knowledge Consolidation
+
+Dreaming is the periodic, reflective phase of the memory system. While waking agents focus on immediate task completion, the dreaming engine steps back to ask:
+
+> *What should be retained, merged, compressed, connected, corrected, archived, or forgotten?*
+
+### Snapshot Isolation & Safety
+Dreaming never operates directly on live, mutable working memory. Instead:
+1. The system creates a point-in-time snapshot of long-term memory.
+2. Waking agents continue serving requests against the live database without latency or lock contention.
+3. Dream agents conduct experiments, syntheses, and restructuring exclusively within the isolated snapshot workspace.
+4. If an experimental consolidation introduces regressions or inconsistencies, the snapshot is discarded without endangering production state.
+
+---
+
+## 10. Specialized Dream Agents
+
+Rather than relying on a single monolithic prompt to reorganize memory, the dreaming engine coordinates specialized dream agents, each focused on a distinct cognitive operation:
+
+```
+                            DREAM ORCHESTRATOR
+                                     │
+       ┌───────────────┬─────────────┼─────────────┬───────────────┐
+       ▼               ▼             ▼             ▼               ▼
+ [Consolidator] [Pattern Finder] [Contradiction] [Compressor] [Relationship]
+                                  [ Resolver  ]                 [ Builder  ]
+```
+
+### 1. Consolidator
+Identifies redundant or overlapping memories generated across multiple sessions and unifies them into canonical records.
+- *Input:*
+  - *"We use PostgreSQL."*
+  - *"Backend database is Postgres."*
+  - *"Our primary relational DB is PostgreSQL 16."*
+- *Output:*
+  - *"The project uses PostgreSQL 16 as its primary relational database."*
+
+### 2. Pattern Finder
+Scans across disparate sessions, projects, and agents to discover recurring themes, successful heuristics, or systemic bottlenecks.
+- Elevates localized observations into overarching best practices or structural insights.
+
+### 3. Contradiction Resolver
+Identifies conflicting statements across memory records (e.g., *"System uses MySQL"* vs. *"System uses PostgreSQL"*).
+- Analyzes timestamps, evidence trails, source authority, and subsequent project decisions.
+- Deprecates obsolete claims while maintaining historical provenance rather than silently deleting past context.
+
+### 4. Memory Compressor
+Synthesizes sprawling episodic histories into dense, high-level summaries while preserving critical causal milestones and evidence citations.
+- Prevents database bloating over months of continuous operation.
+
+### 5. Relationship Builder
+Constructs explicit semantic edges between isolated memory items, transforming a flat memory store into a queryable **Knowledge Graph**.
+- Builds relationships such as: `uses`, `depends_on`, `replaces`, `contradicts`, `supports`, `derived_from`, `part_of`.
+
+### 6. Hypothesis Generator
+Notices preliminary trends or correlations that are not yet confirmed facts.
+- Formulates tentative hypotheses tagged with low confidence.
+- Flags them for verification in future waking sessions as additional evidence accumulates.
+
+---
+
+## 11. Bounded Autonomy: Dream Proposals & The Evaluation Layer
+
+To guarantee system stability, dream agents do not possess direct write access to canonical memory. They operate under a strict governance model:
+
+> **Dream agents propose; the evaluation layer decides.**
+
+```
++--------------------------------------------------------------------------+
+|                       DREAM PROPOSAL LIFECYCLE                           |
++--------------------------------------------------------------------------+
+|  Dream Agents Generate Proposals:                                        |
+|  - CREATE: Introduce new synthesized knowledge or hypotheses             |
+|  - MERGE: Combine multiple redundant records into one                    |
+|  - UPDATE: Refine confidence, scope, or content                          |
+|  - LINK: Establish semantic relationships in the knowledge graph         |
+|  - ARCHIVE / DEPRECATE: Mark obsolete or superseded knowledge            |
+|                                                                          |
+|                                     │                                    |
+|                                     ▼                                    |
+|  Dream Evaluator Scores Proposals:                                       |
+|  - Evidence Quality: Is the proposal backed by verifiable citations?     |
+|  - Consistency: Does it resolve conflict without creating new anomalies? |
+|  - Information Density: Does it genuinely compress redundancy?           |
+|  - Safety & Alignment: Does it preserve critical project constraints?    |
+|                                                                          |
+|                                     │                                    |
+|                  ┌──────────────────┴──────────────────┐                 |
+|                  ▼                                     ▼                 |
+|         [ Rejected Proposals ]               [ Approved Proposals ]      |
+|           Logged for audit                     Promoted to Memory vN+1   |
++--------------------------------------------------------------------------+
+```
+
+This separation of proposal generation from evaluation ensures that autonomous self-modification remains bounded, verifiable, and safe.
+
+---
+
+## 12. Memory Governance, Versioning & Validation
+
+### Immutable Memory Versioning
+Memory is treated as a versioned artifact rather than an untraceable mutable store:
+$$\text{Memory } v_{1} \xrightarrow{\text{Dream Cycle}} \text{Memory } v_{2} \xrightarrow{\text{Dream Cycle}} \text{Memory } v_{3}$$
+- Every dream run produces a new version tag.
+- Complete rollback capability: If a promoted version degrades retrieval performance, the system can instantly revert to a prior known-good version.
+- Auditing: Every modification links back to the responsible dream agent, the proposal rationale, and the supporting evidence.
+
+### Pre-Promotion Validation Checklist
+Before any dream cycle is committed to production memory, it must satisfy strict automated validation gates:
+- **Integrity:** All relational links and foreign references remain valid.
+- **Consistency:** Contradictions are reduced, not introduced.
+- **Compression:** Net storage footprint of consolidated concepts decreases without information loss.
+- **Retrieval Quality:** High-importance baseline memories remain readily discoverable under benchmark queries.
+- **Provenance:** Every newly synthesized memory retains full traceability back to raw episodic events.
+
+---
+
+## 13. Memory Decay, Archiving & Intelligent Forgetting
+
+Human cognition remains effective because the brain deliberately forgets unimportant details. A synthetic memory system that retains every character indefinitely will inevitably suffer from high latency, noise, and ballooning costs.
+
+The system implements a four-stage memory lifecycle:
+
+```
+[ Active ] ───(Access diminishes / Age increases)───> [ Stale ]
+                                                          │
+                                         (Dream cycle evaluation)
+                                                          │
+                                                          ▼
+[ Deleted / Purged ] <───(Retention limit)─── [ Archived ]
+```
+
+1. **Active:** High relevance, high confidence, frequently accessed. Fully available in primary hybrid retrieval.
+2. **Stale:** Infrequently accessed, aging, or low importance. Re-ranked lower during standard retrieval queries.
+3. **Archived:** Removed from daily operational retrieval to keep search fast and noise-free. Retained in cold storage for historical auditing and deep forensic review.
+4. **Deleted / Purged:** Permanently erased when explicitly instructed or upon reaching retention limits for temporary tasks.
+
+---
+
+## 14. Cross-Agent Learning & Emergent Intelligence
+
+In complex environments, no single agent possesses the complete picture. The dreaming system serves as the collective synthesis engine for the entire agent collective:
+
+```
+   Research Agent                Coding Agent               Planning Agent
+(Finds tech constraint)      (Encounters build bug)       (Tracks milestone risk)
+          │                            │                             │
+          └────────────────────────────┼─────────────────────────────┘
+                                       ▼
+                           Raw Episodic Memories
+                                       │
+                                [ Dream Cycle ]
+                                       │
+                                       ▼
+                       Higher-Level Project Insight:
+  "The current build failure is caused by an upstream library incompatibility
+      identified during research, jeopardizing the Friday milestone."
+```
+
+By synthesizing cross-agent observations offline, the system achieves an emergent understanding that no individual agent explicitly discovered or formulated on its own.
+
+---
+
+## 15. The Continuous Closed-Loop Feedback Cycle
+
+The mature system operates as a self-improving cognitive loop:
+
+```mermaid
+graph LR
+    A["1. Live Experience"] -->|Waking Execution| B["2. Episodic Storage"]
+    B -->|Snapshot Extraction| C["3. Dreaming Consolidation"]
+    C -->|Synthesize & Prune| D["4. High-Density Knowledge"]
+    D -->|Promote Version| E["5. Optimized Retrieval"]
+    E -->|Precise Context Injection| A
+```
+
+1. **Waking Agents** execute tasks and encounter novel real-world situations.
+2. **Experiences** are screened and stored in episodic memory.
+3. **Dreaming** periodically consolidates, reorganizes, and verifies accumulated experience.
+4. **Durable Knowledge** is formed and structured into the semantic memory model.
+5. **Enhanced Retrieval** injects higher-quality, lower-noise context into subsequent waking agent tasks, leading to better decision-making and continuous autonomous improvement.
+
+---
+
+## 16. Paradigm Comparison: Vector Stores vs. Dreaming Memory
+
+```
++------------------------------------+------------------------------------+
+|       STANDARD VECTOR STORE        |    DREAMING MULTI-AGENT MEMORY     |
++------------------------------------+------------------------------------+
+| Answers:                           | Answers:                           |
+| "What stored text is semantically  | "What do we know, why do we know   |
+| similar to this query string?"     | it, is it still valid, what        |
+|                                    | contradicts it, and how important  |
+|                                    | is it?"                            |
++------------------------------------+------------------------------------+
+| Static, append-only embeddings     | Dynamic, continuously consolidated |
+|                                    | knowledge representations          |
++------------------------------------+------------------------------------+
+| Retains conflicting facts side-by- | Actively detects and resolves      |
+| side without resolution            | contradictions                     |
++------------------------------------+------------------------------------+
+| Context grows linearly; no         | Synthesizes, compresses, and       |
+| proactive summarization            | archives repetitive experiences    |
++------------------------------------+------------------------------------+
+| No concept of memory lifecycle,    | Built-in decay, forgetting,        |
+| decay, or intentional forgetting   | archiving, and versioning          |
++------------------------------------+------------------------------------+
+| Unbounded context bloat over long  | Constant, predictable context size |
+| operating horizons                 | with high signal-to-noise ratio    |
++------------------------------------+------------------------------------+
+```
+
+---
+
+## 17. Git-Native `.agents/` Storage Architecture
+
+To eliminate opaque binary database merge conflicts and support seamless multi-developer team collaboration, the memory engine is implemented using a **Git-native file-and-directory structure** under `.agents/`:
+
+```text
+.agents/
+├── project_state.json               # Shared Project State: Milestones, tech stack, constraints
+├── versions.json                    # Version registry & promotion audit log
+├── semantic/                        # Semantic Memory: Human-readable, Git-versioned Markdown files
+│   ├── mem_186cc0e2.md              # Consolidated Benchmark Baseline
+│   ├── mem_2f3e8543.md              # Architectural Insight: Dynamic Query Evaluation
+│   ├── mem_64ba7b30.md              # Systemic Vulnerability Pattern: Unencrypted PII
+│   └── archive/                     # Superseded or archived semantic records
+├── episodic/                        # Episodic Memory: Append-only observational interaction logs
+│   ├── episodic_log.jsonl           # Active episodic records (JSON Lines)
+│   └── archive/                     # Consolidated / archived historical traces
+└── working/                         # Working Memory: Ephemeral session scratchpads (.gitignored)
+    └── session_active.json
+```
+
+### Team Collaboration & Pull-Request Driven Knowledge
+- **Human-Readable & Editable:** Developers can open any `.agents/semantic/*.md` file directly in their editor to inspect, modify, or manually add rules for their agents.
+- **Git Diffs for AI Learning:** Every dream consolidation produces clean Markdown diffs that can be committed, reviewed in GitHub PRs, and shared instantly across the engineering team.
+- **Zero Infrastructure:** No hosted database servers or credentials required. Running `git clone` instantly provides the complete team memory baseline.
+
+---
+
+## 18. Summary
+
+The **Dreaming Multi-Agent Memory System** provides the missing cognitive layer for long-running autonomous AI systems. By decoupling real-time task execution from offline memory consolidation, it delivers:
+- **Scalable multi-agent collaboration** without exponential context growth.
+- **Durable institutional knowledge** that compounds over time.
+- **Traceable, versioned, and verifiable** memory operations.
+- **Self-refining intelligence** that transforms raw experience into actionable wisdom.
